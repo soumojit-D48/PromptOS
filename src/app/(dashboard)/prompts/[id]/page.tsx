@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { eq, desc } from "drizzle-orm";
 import { PromptEditor } from "@/components/prompt-editor";
 import { VersionList } from "@/components/version-list";
+import { SimilarPrompts } from "@/components/similar-prompts";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -82,6 +83,10 @@ export default async function PromptDetailPage({ params }: Props) {
           versions={versions}
           currentVersionId={latestVersion?.id}
           publishedVersionId={publishedVersion?.id}
+        />
+        <SimilarPrompts 
+          promptId={prompt.id}
+          orgId={orgId}
         />
       </aside>
     </div>

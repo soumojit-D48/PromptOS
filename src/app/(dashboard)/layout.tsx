@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { orgMembers, organizations } from "@/server/db/schema";
 import { db } from "@/server/db";
 import { eq } from "drizzle-orm";
+import { GlobalSearch } from "@/components/global-search";
 
 export default async function DashboardLayout({
   children,
@@ -27,6 +28,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen">
+      <GlobalSearch />
       <aside className="w-64 border-r bg-gray-50 p-4">
         <div className="mb-6">
           <h2 className="font-semibold">{org?.name || "Organization"}</h2>

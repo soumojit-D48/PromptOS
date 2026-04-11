@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/trpc-client";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -15,11 +15,27 @@ interface Prompt {
   description: string | null;
   updatedAt: Date;
   isArchived: boolean;
+  similarity?: number;
 }
 
 interface PromptsListProps {
   orgId: string;
-  initialPrompts?: Prompt[];
+}
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
 }
 
 export function PromptsList({ orgId }: PromptsListProps) {
@@ -30,10 +46,18 @@ export function PromptsList({ orgId }: PromptsListProps) {
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
 
-  const { data: prompts } = api.prompts.list.useQuery({
+  const debouncedSearch = useDebounce(search, 300);
+  const hasSearchQuery = debouncedSearch.length > 0;
+
+  const { data: prompts, isLoading: isLoadingList } = api.prompts.list.useQuery({
     orgId,
     includeArchived: showArchived,
   });
+
+  const { data: searchResults, isLoading: isSearchingResults } = api.prompts.search.useQuery(
+    { orgId, query: debouncedSearch },
+    { enabled: hasSearchQuery }
+  );
 
   const createMutation = api.prompts.create.useMutation({
     onSuccess: (prompt) => {
@@ -48,11 +72,12 @@ export function PromptsList({ orgId }: PromptsListProps) {
     },
   });
 
-  const filteredPrompts = prompts?.filter((p) => {
+  const displayPrompts = hasSearchQuery ? searchResults : prompts;
+  const isLoading = hasSearchQuery ? isSearchingResults : isLoadingList;
+
+  const filteredPrompts = displayPrompts?.filter((p) => {
     if (!showArchived && p.isArchived) return false;
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q);
+    return true;
   });
 
   const handleCreate = () => {
@@ -64,7 +89,7 @@ export function PromptsList({ orgId }: PromptsListProps) {
     <div>
       <div className="flex gap-4 mb-6">
         <Input
-          placeholder="Search prompts..."
+          placeholder={hasSearchQuery ? "Searching..." : "Search prompts... (Cmd+K)"}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
@@ -75,10 +100,18 @@ export function PromptsList({ orgId }: PromptsListProps) {
         <Button onClick={() => setIsCreateOpen(true)}>New Prompt</Button>
       </div>
 
-      {filteredPrompts?.length === 0 ? (
+      {isLoading ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground mb-4">No prompts yet</p>
-          <Button onClick={() => setIsCreateOpen(true)}>Create your first prompt</Button>
+          <p className="text-muted-foreground">{hasSearchQuery ? "Searching..." : "Loading prompts..."}</p>
+        </div>
+      ) : filteredPrompts?.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground mb-4">
+            {hasSearchQuery ? "No prompts found" : "No prompts yet"}
+          </p>
+          {!hasSearchQuery && (
+            <Button onClick={() => setIsCreateOpen(true)}>Create your first prompt</Button>
+          )}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -97,9 +130,16 @@ export function PromptsList({ orgId }: PromptsListProps) {
               {prompt.description && (
                 <p className="text-sm text-muted-foreground line-clamp-2">{prompt.description}</p>
               )}
-              <p className="text-xs text-muted-foreground mt-2">
-                Updated {new Date(prompt.updatedAt).toLocaleDateString()}
-              </p>
+              <div className="flex justify-between items-center mt-2">
+                <p className="text-xs text-muted-foreground">
+                  Updated {new Date(prompt.updatedAt).toLocaleDateString()}
+                </p>
+                {"similarity" in prompt && typeof prompt.similarity === "number" && (
+                  <span className="text-xs text-primary font-medium">
+                    {Math.round(prompt.similarity)}% match
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
