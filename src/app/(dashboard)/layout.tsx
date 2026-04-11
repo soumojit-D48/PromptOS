@@ -28,7 +28,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen">
-      <GlobalSearch />
+      <GlobalSearch orgId={org?.id || ""} />
       <aside className="w-64 border-r bg-gray-50 p-4">
         <div className="mb-6">
           <h2 className="font-semibold">{org?.name || "Organization"}</h2>

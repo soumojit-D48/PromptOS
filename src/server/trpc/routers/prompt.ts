@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, orgProc } from "../init";
 import { prompts, promptVersions } from "@/server/db/schema";
 import { eq, and, or, ilike, desc, isNotNull } from "drizzle-orm";
-import { embedText } from "@/server/ai/embed";
+import { embedText, cosineSimilarity } from "@/server/ai/embed";
 import { db } from "@/server/db";
 
 export const promptsRouter = router({
@@ -91,23 +91,23 @@ export const promptsRouter = router({
 
       const queryEmbedding = await embedText(input.query);
 
-      const publishedVersions = await ctx.db.query.promptVersions.findMany({
-        where: and(
-          isNotNull(promptVersions.embedding),
-          eq(promptVersions.isPublished, true)
-        ),
-      });
-
       const promptData = await ctx.db.query.prompts.findMany({
         where: and(eq(prompts.orgId, input.orgId), eq(prompts.isArchived, false)),
       });
 
       const results = await Promise.all(
         promptData.map(async (prompt) => {
-          const version = publishedVersions.find((v) => v.promptId === prompt.id);
-          if (!version || !version.embedding) return null;
+          const version = await ctx.db.query.promptVersions.findFirst({
+            where: and(
+              eq(promptVersions.promptId, prompt.id),
+              eq(promptVersions.isPublished, true),
+              isNotNull(promptVersions.embedding)
+            ),
+          });
+          
+          if (!version?.embedding) return null;
 
-          const similarity = await computeSimilarity(
+          const similarity = cosineSimilarity(
             queryEmbedding,
             version.embedding
           );
@@ -157,7 +157,7 @@ export const promptsRouter = router({
         allVersions
           .filter((v) => v.promptId !== input.promptId)
           .map(async (version) => {
-            const similarity = await computeSimilarity(
+            const similarity = cosineSimilarity(
               currentVersion.embedding!,
               version.embedding!
             );
@@ -184,19 +184,3 @@ export const promptsRouter = router({
         }));
     }),
 });
-
-async function computeSimilarity(a: number[], b: number[]): Promise<number> {
-  if (!a || !b || a.length !== b.length) return 0;
-
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}

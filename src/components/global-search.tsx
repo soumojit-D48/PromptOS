@@ -2,6 +2,10 @@
 
 import { SearchPalette } from "./search-palette";
 
-export function GlobalSearch() {
-  return <SearchPalette />;
+interface GlobalSearchProps {
+  orgId: string;
+}
+
+export function GlobalSearch({ orgId }: GlobalSearchProps) {
+  return <SearchPalette orgId={orgId} />;
 }

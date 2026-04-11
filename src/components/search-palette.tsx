@@ -28,7 +28,11 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-export function SearchPalette() {
+interface SearchPaletteProps {
+  orgId: string;
+}
+
+export function SearchPalette({ orgId }: SearchPaletteProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -38,8 +42,8 @@ export function SearchPalette() {
   const debouncedQuery = useDebounce(query, 300);
   
   const { data: searchResults } = api.prompts.search.useQuery(
-    { orgId: "default-org-id", query: debouncedQuery },
-    { enabled: debouncedQuery.length > 0 && typeof window !== "undefined" }
+    { orgId, query: debouncedQuery },
+    { enabled: debouncedQuery.length > 0 && !!orgId && typeof window !== "undefined" }
   );
 
   useEffect(() => {
