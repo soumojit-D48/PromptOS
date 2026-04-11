@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import * as Dialog from "@radix-ui/react-dialog";
+import { TestRunner } from "./test-runner";
 
 interface Version {
   id: string;
@@ -217,6 +218,8 @@ export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion, o
           {createVersion.isPending ? "Saving..." : "Save Version"}
         </Button>
       </div>
+
+      <TestRunner versionId={latestVersion?.id || ""} variables={variables} defaultModel={model} />
 
       <Dialog.Root open={isSaveOpen} onOpenChange={setIsSaveOpen}>
         <Dialog.Portal>
