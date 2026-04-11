@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { router, orgProc } from "../init";
 import { prompts, promptVersions } from "@/server/db/schema";
-import { eq, and, or, ilike, desc } from "drizzle-orm";
+import { eq, and, or, ilike, desc, isNotNull } from "drizzle-orm";
+import { embedText } from "@/server/ai/embed";
+import { db } from "@/server/db";
 
 export const promptsRouter = router({
   list: orgProc
@@ -86,16 +88,115 @@ export const promptsRouter = router({
           orderBy: [desc(prompts.updatedAt)],
         });
       }
-      return ctx.db.query.prompts.findMany({
+
+      const queryEmbedding = await embedText(input.query);
+
+      const publishedVersions = await ctx.db.query.promptVersions.findMany({
         where: and(
-          eq(prompts.orgId, input.orgId),
-          eq(prompts.isArchived, false),
-          or(
-            ilike(prompts.name, `%${input.query}%`),
-            ilike(prompts.description, `%${input.query}%`)
-          )
+          isNotNull(promptVersions.embedding),
+          eq(promptVersions.isPublished, true)
         ),
-        orderBy: [desc(prompts.updatedAt)],
       });
+
+      const promptData = await ctx.db.query.prompts.findMany({
+        where: and(eq(prompts.orgId, input.orgId), eq(prompts.isArchived, false)),
+      });
+
+      const results = await Promise.all(
+        promptData.map(async (prompt) => {
+          const version = publishedVersions.find((v) => v.promptId === prompt.id);
+          if (!version || !version.embedding) return null;
+
+          const similarity = await computeSimilarity(
+            queryEmbedding,
+            version.embedding
+          );
+
+          return {
+            prompt,
+            similarity: similarity * 100,
+            version,
+          };
+        })
+      );
+
+      const filteredResults = results
+        .filter((r): r is NonNullable<typeof r> => r !== null)
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, 10);
+
+      return filteredResults.map((r) => ({
+        ...r.prompt,
+        similarity: r.similarity,
+      }));
+    }),
+
+  similar: orgProc
+    .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const currentPrompt = await ctx.db.query.prompts.findFirst({
+        where: and(eq(prompts.id, input.promptId), eq(prompts.orgId, input.orgId)),
+      });
+      if (!currentPrompt) return [];
+
+      const currentVersion = await ctx.db.query.promptVersions.findFirst({
+        where: and(eq(promptVersions.promptId, input.promptId), eq(promptVersions.isPublished, true)),
+        orderBy: [desc(promptVersions.createdAt)],
+      });
+
+      if (!currentVersion?.embedding) return [];
+
+      const allVersions = await ctx.db.query.promptVersions.findMany({
+        where: and(
+          isNotNull(promptVersions.embedding),
+          eq(promptVersions.isPublished, true),
+        ),
+      });
+
+      const similarResults = await Promise.all(
+        allVersions
+          .filter((v) => v.promptId !== input.promptId)
+          .map(async (version) => {
+            const similarity = await computeSimilarity(
+              currentVersion.embedding!,
+              version.embedding!
+            );
+
+            const prompt = await ctx.db.query.prompts.findFirst({
+              where: eq(prompts.id, version.promptId),
+            });
+
+            return {
+              prompt,
+              similarity: similarity * 100,
+              version,
+            };
+          })
+      );
+
+      return similarResults
+        .filter((r): r is NonNullable<typeof r> => r.prompt !== null)
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, 5)
+        .map((r) => ({
+          ...r.prompt!,
+          similarity: r.similarity,
+        }));
     }),
 });
+
+async function computeSimilarity(a: number[], b: number[]): Promise<number> {
+  if (!a || !b || a.length !== b.length) return 0;
+
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
