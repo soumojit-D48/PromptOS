@@ -111,7 +111,7 @@ export const experiments = pgTable("experiments", {
 
 export const experimentRuns = pgTable("experiment_runs", {
   id:           uuid("id").primaryKey().defaultRandom(),
-  experimentId: uuid("experiment_id").notNull().references(() => experiments.id, { onDelete: "cascade" }),
+  experimentId: uuid("experiment_id").references(() => experiments.id, { onDelete: "cascade" }),
   versionId:    uuid("version_id").notNull().references(() => promptVersions.id),
   input:        jsonb("input").notNull(),
   output:       text("output"),
@@ -119,6 +119,7 @@ export const experimentRuns = pgTable("experiment_runs", {
   tokensIn:     integer("tokens_in"),
   tokensOut:    integer("tokens_out"),
   score:        real("score"),
+  runType:      text("run_type").default("experiment").notNull(),
   createdAt:    timestamp("created_at").defaultNow().notNull(),
 });
 
