@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/trpc-client";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,7 +15,7 @@ interface Version {
   versionNum: number;
   content: string;
   model: string;
-  params: { temperature: number; maxTokens: number };
+  params: Record<string, unknown>;
   isPublished: boolean;
   commitMsg: string | null;
   createdAt: Date;
@@ -32,6 +33,7 @@ interface PromptEditorProps {
   orgId: string;
   latestVersion?: Version;
   publishedVersion?: Version;
+  onVersionCreated?: (version: Version) => void;
 }
 
 const FREE_MODELS = [
@@ -42,35 +44,64 @@ const FREE_MODELS = [
   { id: "deepseek/deepseek-r1:free", name: "DeepSeek R1" },
 ];
 
-export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion }: PromptEditorProps) {
+export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion, onVersionCreated }: PromptEditorProps) {
+  const router = useRouter();
+  const initialParams = latestVersion?.params as { temperature?: number; maxTokens?: number; systemPrompt?: string } | undefined;
   const [content, setContent] = useState(latestVersion?.content || "");
-  const [systemPrompt, setSystemPrompt] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState(initialParams?.systemPrompt || "");
   const [model, setModel] = useState(latestVersion?.model || "meta-llama/llama-3.3-70b-instruct:free");
-  const [temperature, setTemperature] = useState(latestVersion?.params?.temperature ?? 0.7);
-  const [maxTokens, setMaxTokens] = useState(latestVersion?.params?.maxTokens ?? 1000);
+  const [temperature, setTemperature] = useState(initialParams?.temperature ?? 0.7);
+  const [maxTokens, setMaxTokens] = useState(initialParams?.maxTokens ?? 1000);
   const [commitMsg, setCommitMsg] = useState("");
   const [isSaveOpen, setIsSaveOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
+  const createVersion = api.versions.create.useMutation({
+    onSuccess: (version) => {
+      setIsSaveOpen(false);
+      setCommitMsg("");
+      toast.success("Version saved");
+      setHasChanges(false);
+      const params = version.params as { temperature: number; maxTokens: number; systemPrompt?: string };
+      setContent(version.content);
+      setModel(version.model);
+      setTemperature(params?.temperature ?? 0.7);
+      setMaxTokens(params?.maxTokens ?? 1000);
+      setSystemPrompt(params?.systemPrompt || "");
+      if (onVersionCreated) {
+        onVersionCreated(version as Version);
+      } else {
+        router.refresh();
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
   useEffect(() => {
     if (latestVersion) {
+      const params = latestVersion.params as { temperature?: number; maxTokens?: number; systemPrompt?: string } | undefined;
       setContent(latestVersion.content);
       setModel(latestVersion.model);
-      setTemperature(latestVersion.params?.temperature ?? 0.7);
-      setMaxTokens(latestVersion.params?.maxTokens ?? 1000);
+      setTemperature(params?.temperature ?? 0.7);
+      setMaxTokens(params?.maxTokens ?? 1000);
+      setSystemPrompt(params?.systemPrompt || "");
     }
   }, [latestVersion]);
 
   useEffect(() => {
     if (latestVersion) {
+      const params = latestVersion.params as { temperature?: number; maxTokens?: number; systemPrompt?: string } | undefined;
       setHasChanges(
         content !== latestVersion.content ||
         model !== latestVersion.model ||
-        temperature !== (latestVersion.params?.temperature ?? 0.7) ||
-        maxTokens !== (latestVersion.params?.maxTokens ?? 1000)
+        temperature !== (params?.temperature ?? 0.7) ||
+        maxTokens !== (params?.maxTokens ?? 1000) ||
+        systemPrompt !== (params?.systemPrompt || "")
       );
     }
-  }, [content, model, temperature, maxTokens, latestVersion]);
+  }, [content, model, temperature, maxTokens, systemPrompt, latestVersion]);
 
   const variables = useMemo(() => {
     const matches = content.match(/\{\{(\w+)\}\}/g) || [];
@@ -81,7 +112,14 @@ export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion }:
   const tokenEstimate = Math.ceil(charCount / 4);
 
   const handleSave = () => {
-    toast.info("Version saving will be available in Step 6");
+    createVersion.mutate({
+      orgId,
+      promptId: prompt.id,
+      content,
+      model,
+      params: { temperature, maxTokens, systemPrompt },
+      commitMsg: commitMsg || undefined,
+    });
   };
 
   return (
@@ -175,8 +213,8 @@ export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion }:
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={() => setIsSaveOpen(true)} disabled={!hasChanges}>
-          Save Version
+        <Button onClick={() => setIsSaveOpen(true)} disabled={!hasChanges || createVersion.isPending}>
+          {createVersion.isPending ? "Saving..." : "Save Version"}
         </Button>
       </div>
 
@@ -198,8 +236,8 @@ export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion }:
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <Button variant="outline" onClick={() => setIsSaveOpen(false)}>Cancel</Button>
-              <Button onClick={handleSave}>
-                Save
+              <Button onClick={handleSave} disabled={createVersion.isPending}>
+                {createVersion.isPending ? "Saving..." : "Save"}
               </Button>
             </div>
           </Dialog.Content>

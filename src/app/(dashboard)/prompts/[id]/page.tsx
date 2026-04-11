@@ -1,13 +1,25 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { orgMembers, prompts } from "@/server/db/schema";
+import { orgMembers, prompts, promptVersions } from "@/server/db/schema";
 import { db } from "@/server/db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { PromptEditor } from "@/components/prompt-editor";
+import { VersionList } from "@/components/version-list";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
+
+type VersionData = {
+  id: string;
+  versionNum: number;
+  content: string;
+  model: string;
+  params: { temperature: number; maxTokens: number; systemPrompt?: string };
+  isPublished: boolean;
+  commitMsg: string | null;
+  createdAt: Date;
+};
 
 export default async function PromptDetailPage({ params }: Props) {
   const { id } = await params;
@@ -34,13 +46,43 @@ export default async function PromptDetailPage({ params }: Props) {
     );
   }
 
+  const versionsRaw = await db.query.promptVersions.findMany({
+    where: eq(promptVersions.promptId, id),
+    orderBy: [desc(promptVersions.versionNum)],
+  });
+
+  const versions: VersionData[] = versionsRaw.map((v) => ({
+    id: v.id,
+    versionNum: v.versionNum,
+    content: v.content,
+    model: v.model,
+    params: (v.params as { temperature: number; maxTokens: number; systemPrompt?: string }) || { temperature: 0.7, maxTokens: 1000 },
+    isPublished: v.isPublished,
+    commitMsg: v.commitMsg,
+    createdAt: v.createdAt,
+  }));
+
+  const latestVersion = versions[0];
+  const publishedVersion = versions.find((v) => v.isPublished);
+
   return (
     <div className="flex h-full">
-      <div className="flex-1 p-6">
-        <PromptEditor prompt={prompt} orgId={orgId} />
+      <div className="flex-1 p-6 overflow-y-auto">
+        <PromptEditor 
+          prompt={prompt} 
+          orgId={orgId} 
+          latestVersion={latestVersion}
+          publishedVersion={publishedVersion}
+        />
       </div>
-      <aside className="w-64 border-l p-4 bg-gray-50">
-        <p className="text-sm text-muted-foreground">Version history will appear here</p>
+      <aside className="w-72 border-l p-4 bg-gray-50 overflow-y-auto">
+        <VersionList 
+          promptId={prompt.id}
+          orgId={orgId}
+          versions={versions}
+          currentVersionId={latestVersion?.id}
+          publishedVersionId={publishedVersion?.id}
+        />
       </aside>
     </div>
   );
