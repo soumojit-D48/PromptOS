@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, orgProc } from "../init";
 import { promptVersions, prompts } from "@/server/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { inngest } from "@/server/inngest/client";
 
 function computeDiff(contentA: string, contentB: string) {
   const linesA = contentA.split("\n");
@@ -89,6 +90,11 @@ export const versionsRouter = router({
       }).returning();
 
       await ctx.db.update(prompts).set({ updatedAt: new Date() }).where(eq(prompts.id, input.promptId));
+
+      await inngest.send({
+        name: "prompt/version.created",
+        data: { versionId: version.id },
+      });
 
       return version;
     }),
