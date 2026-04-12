@@ -6,6 +6,8 @@ import { eq, desc } from "drizzle-orm";
 import { PromptEditor } from "@/components/prompt-editor";
 import { VersionList } from "@/components/version-list";
 import { SimilarPrompts } from "@/components/similar-prompts";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -77,6 +79,14 @@ export default async function PromptDetailPage({ params }: Props) {
         />
       </div>
       <aside className="w-72 border-l p-4 bg-gray-50 overflow-y-auto">
+        <div className="mb-4">
+          <Link 
+            href={`/experiments/new?promptId=${prompt.id}`}
+            className="w-full block text-center px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+          >
+            Run A/B Test
+          </Link>
+        </div>
         <VersionList 
           promptId={prompt.id}
           orgId={orgId}

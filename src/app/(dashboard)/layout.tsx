@@ -4,6 +4,7 @@ import { orgMembers, organizations } from "@/server/db/schema";
 import { db } from "@/server/db";
 import { eq } from "drizzle-orm";
 import { GlobalSearch } from "@/components/global-search";
+import Link from "next/link";
 
 export default async function DashboardLayout({
   children,
@@ -34,18 +35,18 @@ export default async function DashboardLayout({
           <h2 className="font-semibold">{org?.name || "Organization"}</h2>
         </div>
         <nav className="space-y-2">
-          <a href="/prompts" className="block px-3 py-2 rounded hover:bg-gray-200">
+          <Link href="/prompts" className="block px-3 py-2 rounded hover:bg-gray-200">
             Prompts
-          </a>
-          <a href="/experiments" className="block px-3 py-2 rounded hover:bg-gray-200">
+          </Link>
+          <Link href="/experiments" className="block px-3 py-2 rounded hover:bg-gray-200">
             Experiments
-          </a>
-          <a href="/analytics" className="block px-3 py-2 rounded hover:bg-gray-200">
+          </Link>
+          <Link href="/analytics" className="block px-3 py-2 rounded hover:bg-gray-200">
             Analytics
-          </a>
-          <a href="/settings" className="block px-3 py-2 rounded hover:bg-gray-200">
+          </Link>
+          <Link href="/settings" className="block px-3 py-2 rounded hover:bg-gray-200">
             Settings
-          </a>
+          </Link>
         </nav>
       </aside>
       <main className="flex-1 p-6">{children}</main>
