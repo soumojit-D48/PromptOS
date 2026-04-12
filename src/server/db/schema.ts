@@ -118,13 +118,14 @@ export const experimentRuns = pgTable("experiment_runs", {
 });
 
 export const apiKeys = pgTable("api_keys", {
-  id:        uuid("id").primaryKey().defaultRandom(),
-  orgId:     uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  keyHash:   text("key_hash").notNull(),
-  name:      text("name").notNull(),
-  lastUsed:  timestamp("last_used"),
-  revokedAt: timestamp("revoked_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  id:          uuid("id").primaryKey().defaultRandom(),
+  orgId:       uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  keyHash:     text("key_hash").notNull(),
+  name:        text("name").notNull(),
+  permissions: text("permissions").default("execute"),
+  lastUsed:    timestamp("last_used"),
+  revokedAt:   timestamp("revoked_at"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
