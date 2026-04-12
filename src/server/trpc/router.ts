@@ -4,6 +4,7 @@ import { teamsRouter } from "./routers/teams";
 import { versionsRouter } from "./routers/versions";
 import { experimentsRouter } from "./routers/experiments";
 import { analyticsRouter } from "./routers/analytics";
+import { apiKeysRouter } from "./routers/api-keys";
 
 export const appRouter = router({
   prompts: promptsRouter,
@@ -11,6 +12,7 @@ export const appRouter = router({
   versions: versionsRouter,
   experiments: experimentsRouter,
   analytics: analyticsRouter,
+  apiKeys: apiKeysRouter,
 });
 
 export type AppRouter = typeof appRouter;
