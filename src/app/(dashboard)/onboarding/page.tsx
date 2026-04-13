@@ -1,15 +1,24 @@
-export default function OnboardingPage() {
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold mb-4">Create Your Organization</h1>
-        <p className="text-muted-foreground mb-6">
-          Set up your workspace to get started with PromptOS
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Onboarding form coming soon...
-        </p>
-      </div>
-    </div>
-  );
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { db } from "@/server/db";
+import { orgMembers, prompts } from "@/server/db/schema";
+import { eq, count, isNull } from "drizzle-orm";
+import { OnboardingClient } from "./onboarding-client";
+
+export default async function OnboardingPage() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const memberships = await db
+    .select()
+    .from(orgMembers)
+    .where(eq(orgMembers.userId, session.user.id));
+
+  if (memberships.length > 0) {
+    redirect("/prompts");
+  }
+
+  return <OnboardingClient userId={session.user.id} />;
 }
