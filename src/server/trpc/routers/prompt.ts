@@ -5,6 +5,7 @@ import { eq, and, or, ilike, desc, isNotNull } from "drizzle-orm";
 import { embedText, cosineSimilarity } from "@/server/ai/embed";
 import { db } from "@/server/db";
 import { TRPCError } from "@trpc/server";
+import { inngest } from "@/server/inngest/client";
 
 export const promptsRouter = router({
   list: orgProc
@@ -46,6 +47,12 @@ export const promptsRouter = router({
         name: input.name,
         description: input.description,
       }).returning();
+
+      await inngest.send({
+        name: "prompt/created",
+        data: { promptId: prompt.id, orgId: input.orgId },
+      });
+
       return prompt;
     }),
 
