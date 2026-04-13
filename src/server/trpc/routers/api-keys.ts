@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, orgProc } from "../init";
+import { router, orgProc, ownerProc } from "../init";
 import { db } from "@/server/db";
 import { apiKeys } from "@/server/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
@@ -27,7 +27,7 @@ export const apiKeysRouter = router({
       }));
     }),
 
-  create: orgProc
+  create: ownerProc
     .input(z.object({
       orgId: z.string(),
       name: z.string().min(1).max(100),
@@ -57,7 +57,7 @@ export const apiKeysRouter = router({
       };
     }),
 
-  revoke: orgProc
+  revoke: ownerProc
     .input(z.object({
       orgId: z.string(),
       keyId: z.string(),

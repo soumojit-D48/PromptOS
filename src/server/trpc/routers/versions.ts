@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, orgProc } from "../init";
+import { router, orgProc, editorProc } from "../init";
 import { promptVersions, prompts } from "@/server/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { inngest } from "@/server/inngest/client";
@@ -56,7 +56,7 @@ export const versionsRouter = router({
       });
     }),
 
-  create: orgProc
+  create: editorProc
     .input(z.object({
       orgId: z.string().uuid(),
       promptId: z.string().uuid(),
@@ -99,7 +99,7 @@ export const versionsRouter = router({
       return version;
     }),
 
-  publish: orgProc
+  publish: editorProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid(), versionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db
@@ -118,7 +118,7 @@ export const versionsRouter = router({
       return version;
     }),
 
-  rollback: orgProc
+  rollback: editorProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid(), versionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const targetVersion = await ctx.db.query.promptVersions.findFirst({

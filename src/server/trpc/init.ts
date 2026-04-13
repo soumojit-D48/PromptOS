@@ -35,3 +35,23 @@ export const orgProc = protectedProc.use(async ({ ctx, next, input }) => {
 
   return next({ ctx: { ...ctx, orgId, role: membership.role } });
 });
+
+export const editorProc = orgProc.use(async ({ ctx, next }) => {
+  if (ctx.role !== "owner" && ctx.role !== "editor") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Editor or Owner role required",
+    });
+  }
+  return next();
+});
+
+export const ownerProc = orgProc.use(async ({ ctx, next }) => {
+  if (ctx.role !== "owner") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Owner role required",
+    });
+  }
+  return next();
+});

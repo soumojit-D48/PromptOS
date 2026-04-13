@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, orgProc } from "../init";
+import { router, orgProc, editorProc } from "../init";
 import { experiments, experimentRuns, prompts, promptVersions } from "@/server/db/schema";
 import { eq, and, desc, sql, count } from "drizzle-orm";
 import { inngest } from "@/server/inngest/client";
@@ -49,7 +49,7 @@ export const experimentsRouter = router({
       };
     }),
 
-  create: orgProc
+  create: editorProc
     .input(z.object({
       orgId: z.string().uuid(),
       promptId: z.string().uuid(),
@@ -96,7 +96,7 @@ export const experimentsRouter = router({
       return experiment;
     }),
 
-  start: orgProc
+  start: editorProc
     .input(z.object({ orgId: z.string().uuid(), experimentId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [experiment] = await ctx.db

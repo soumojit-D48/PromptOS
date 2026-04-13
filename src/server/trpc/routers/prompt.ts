@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, orgProc } from "../init";
+import { router, orgProc, editorProc, ownerProc } from "../init";
 import { prompts, promptVersions } from "@/server/db/schema";
 import { eq, and, or, ilike, desc, isNotNull } from "drizzle-orm";
 import { embedText, cosineSimilarity } from "@/server/ai/embed";
@@ -32,7 +32,7 @@ export const promptsRouter = router({
       return prompt;
     }),
 
-  create: orgProc
+  create: editorProc
     .input(z.object({
       orgId: z.string().uuid(),
       name: z.string().min(1).max(100),
@@ -48,7 +48,7 @@ export const promptsRouter = router({
       return prompt;
     }),
 
-  update: orgProc
+  update: editorProc
     .input(z.object({
       orgId: z.string().uuid(),
       promptId: z.string().uuid(),
@@ -68,7 +68,7 @@ export const promptsRouter = router({
       return prompt;
     }),
 
-  archive: orgProc
+  archive: ownerProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [prompt] = await ctx.db
