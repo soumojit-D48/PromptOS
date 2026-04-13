@@ -52,11 +52,12 @@ export const verificationTokens = pgTable("verification_tokens", {
 });
 
 export const organizations = pgTable("organizations", {
-  id:        uuid("id").primaryKey().defaultRandom(),
-  name:      text("name").notNull(),
-  slug:      text("slug").notNull().unique(),
-  plan:      planEnum("plan").default("free").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  id:             uuid("id").primaryKey().defaultRandom(),
+  name:           text("name").notNull(),
+  slug:           text("slug").notNull().unique(),
+  plan:           planEnum("plan").default("free").notNull(),
+  stripeCustomerId: text("stripe_customer_id"),
+  createdAt:       timestamp("created_at").defaultNow().notNull(),
 });
 
 export const orgMembers = pgTable("org_members", {
