@@ -128,6 +128,18 @@ export const apiKeys = pgTable("api_keys", {
   createdAt:   timestamp("created_at").defaultNow().notNull(),
 });
 
+export const promptAttachments = pgTable("prompt_attachments", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  promptId:   uuid("prompt_id").notNull().references(() => prompts.id, { onDelete: "cascade" }),
+  orgId:      uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  url:        text("url").notNull(),
+  name:       text("name").notNull(),
+  size:       integer("size").notNull(),
+  type:       text("type").notNull(),
+  uploadedBy: uuid("uploaded_by").notNull().references(() => users.id),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   sessions: many(sessions),
@@ -213,5 +225,20 @@ export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
   organization: one(organizations, {
     fields: [apiKeys.orgId],
     references: [organizations.id],
+  }),
+}));
+
+export const promptAttachmentsRelations = relations(promptAttachments, ({ one }) => ({
+  prompt: one(prompts, {
+    fields: [promptAttachments.promptId],
+    references: [prompts.id],
+  }),
+  organization: one(organizations, {
+    fields: [promptAttachments.orgId],
+    references: [organizations.id],
+  }),
+  uploader: one(users, {
+    fields: [promptAttachments.uploadedBy],
+    references: [users.id],
   }),
 }));
