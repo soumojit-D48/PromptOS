@@ -4,6 +4,7 @@ import { orgMembers, organizations } from "@/server/db/schema";
 import { db } from "@/server/db";
 import { eq } from "drizzle-orm";
 import { GlobalSearch } from "@/components/global-search";
+import { OrgSwitcher } from "@/components/org-switcher";
 import Link from "next/link";
 
 export default async function DashboardLayout({
@@ -23,16 +24,30 @@ export default async function DashboardLayout({
     redirect("/onboarding");
   }
 
-  const org = await db.query.organizations.findFirst({
-    where: eq(organizations.id, memberships[0].orgId),
-  });
+  const currentOrgId = memberships[0].orgId;
+
+  const orgs = await Promise.all(
+    memberships.map(async (m) => {
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, m.orgId),
+      });
+      return org;
+    })
+  );
+
+  const validOrgs = orgs.filter((o): o is NonNullable<typeof o> => o !== null);
+  const currentOrg = validOrgs.find((o) => o.id === currentOrgId) || validOrgs[0];
 
   return (
     <div className="flex min-h-screen">
-      <GlobalSearch orgId={org?.id || ""} />
+      <GlobalSearch orgId={currentOrgId} />
       <aside className="w-64 border-r bg-gray-50 p-4">
         <div className="mb-6">
-          <h2 className="font-semibold">{org?.name || "Organization"}</h2>
+          <OrgSwitcher
+            currentOrgId={currentOrgId}
+            currentOrgName={currentOrg?.name || "Organization"}
+            organizations={validOrgs}
+          />
         </div>
         <nav className="space-y-2">
           <Link href="/prompts" className="block px-3 py-2 rounded hover:bg-gray-200">
