@@ -7,6 +7,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { getFeatureFlag } from "@/lib/track";
 
 interface ExperimentVersion {
   id: string;
@@ -31,9 +32,10 @@ export function ABWizard({ promptId, orgId, versions, open, onOpenChange }: ABWi
   const [selectedVersions, setSelectedVersions] = useState<string[]>([]);
   const [trafficSplit, setTrafficSplit] = useState<Record<string, number>>({});
   const [inputsJson, setInputsJson] = useState("[\n  {}\n]");
-  const [enableScoring, setEnableScoring] = useState(false);
   const [scoringRubric, setScoringRubric] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const enableScoring = getFeatureFlag("ab-scoring-enabled");
 
   const createMutation = api.experiments.create.useMutation();
   const startMutation = api.experiments.start.useMutation();
@@ -115,15 +117,14 @@ export function ABWizard({ promptId, orgId, versions, open, onOpenChange }: ABWi
 
   const closeAndReset = () => {
     onOpenChange(false);
-    setTimeout(() => {
-      setStep(1);
-      setName("");
-      setSelectedVersions([]);
-      setTrafficSplit({});
-      setInputsJson("[\n  {}\n]");
-      setEnableScoring(false);
-      setScoringRubric("");
-    }, 300);
+setTimeout(() => {
+        setStep(1);
+        setName("");
+        setSelectedVersions([]);
+        setTrafficSplit({});
+        setInputsJson("[\n  {}\n]");
+        setScoringRubric("");
+      }, 300);
   };
 
   const publishedVersions = versions.filter(v => v.content);
@@ -246,7 +247,7 @@ export function ABWizard({ promptId, orgId, versions, open, onOpenChange }: ABWi
                     <input
                       type="checkbox"
                       checked={enableScoring}
-                      onChange={(e) => setEnableScoring(e.target.checked)}
+                      disabled={true}
                     />
                     <span>Enable AI scoring</span>
                   </div>
