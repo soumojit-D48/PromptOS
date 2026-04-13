@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { router, orgProc, editorProc, ownerProc } from "../init";
-import { prompts, promptVersions } from "@/server/db/schema";
+import { prompts, promptVersions, promptAttachments, organizations } from "@/server/db/schema";
 import { eq, and, or, ilike, desc, isNotNull } from "drizzle-orm";
 import { embedText, cosineSimilarity } from "@/server/ai/embed";
 import { db } from "@/server/db";
+import { TRPCError } from "@trpc/server";
 
 export const promptsRouter = router({
   list: orgProc
@@ -183,4 +184,76 @@ export const promptsRouter = router({
           similarity: r.similarity,
         }));
     }),
+
+  attachments: router({
+    list: orgProc
+      .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        return ctx.db.query.promptAttachments.findMany({
+          where: and(
+            eq(promptAttachments.promptId, input.promptId),
+            eq(promptAttachments.orgId, input.orgId)
+          ),
+        });
+      }),
+
+    create: editorProc
+      .input(z.object({
+        orgId: z.string().uuid(),
+        promptId: z.string().uuid(),
+        url: z.string(),
+        name: z.string(),
+        size: z.number(),
+        type: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const org = await ctx.db.query.organizations.findFirst({
+          where: eq(organizations.id, input.orgId),
+        });
+
+        const currentAttachments = await ctx.db.query.promptAttachments.findMany({
+          where: eq(promptAttachments.promptId, input.promptId),
+        });
+
+        if (org?.plan === "free" && currentAttachments.length >= 3) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Free plan allows 3 attachments per prompt. Upgrade to Pro for more.",
+          });
+        }
+
+        const attachment = await ctx.db.insert(promptAttachments).values({
+          promptId: input.promptId,
+          orgId: input.orgId,
+          url: input.url,
+          name: input.name,
+          size: input.size,
+          type: input.type,
+          uploadedBy: ctx.userId!,
+        }).returning();
+
+        return attachment[0];
+      }),
+
+    delete: editorProc
+      .input(z.object({ orgId: z.string().uuid(), attachmentId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const attachment = await ctx.db.query.promptAttachments.findFirst({
+          where: and(
+            eq(promptAttachments.id, input.attachmentId),
+            eq(promptAttachments.orgId, input.orgId)
+          ),
+        });
+
+        if (!attachment) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Attachment not found" });
+        }
+
+        await ctx.db
+          .delete(promptAttachments)
+          .where(eq(promptAttachments.id, input.attachmentId));
+
+        return { success: true };
+      }),
+  }),
 });
