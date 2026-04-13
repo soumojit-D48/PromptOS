@@ -2,11 +2,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/server/db";
-import { apiKeys, prompts, promptVersions } from "@/server/db/schema";
+import { apiKeys, prompts, promptVersions, organizations } from "@/server/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { verifyApiKey } from "@/lib/api-key";
 import { getModel } from "@/server/ai/openrouter";
 import { inngest } from "@/server/inngest/client";
+import { redis } from "@/lib/upstash";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { createHash } from "crypto";
 
 const executeSchema = z.object({
   promptId: z.string().uuid(),
@@ -47,6 +50,21 @@ export async function POST(req: NextRequest) {
 
     if (validKey.revokedAt) {
       return NextResponse.json({ error: "API key revoked" }, { status: 403 });
+    }
+
+    // Get org to check plan
+    const org = await db.query.organizations.findFirst({
+      where: eq(organizations.id, validKey.orgId),
+    });
+    const plan = (org?.plan || "free") as "free" | "pro";
+
+    // Check rate limit
+    const rateLimit = await checkRateLimit(validKey.id, plan);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded", retryAfter: rateLimit.reset },
+        { status: 429, headers: { "Retry-After": rateLimit.reset.toString() } }
+      );
     }
 
     const body = await req.json();
@@ -91,21 +109,52 @@ export async function POST(req: NextRequest) {
 
     const versionParams = (promptVersion.params as Record<string, string>) || {};
     
-    const startTime = Date.now();
-
-    let content = String(promptVersion.content || "");
-    for (const [key, value] of Object.entries(input)) {
-      content = content.split(`{{${key}}`).join(String(value));
+    // Check cache for non-streaming requests
+    let cacheHit = false;
+    let cachedOutput = null;
+    
+    if (!stream) {
+      const cacheKey = createHash("sha256")
+        .update(`${promptVersion.id}:${JSON.stringify(input)}`)
+        .digest("hex");
+      
+      cachedOutput = await redis.get(`cache:${cacheKey}`);
+      if (cachedOutput) {
+        cacheHit = true;
+      }
     }
+    
+    let text: string;
+    let latencyMs: number;
+    const startTime = Date.now();
+    
+    if (!cacheHit) {
+      let content = String(promptVersion.content || "");
+      for (const [key, value] of Object.entries(input)) {
+        content = content.split(`{{${key}}`).join(String(value));
+      }
 
-    const model = getModel(String(promptVersion.model || "meta-llama/llama-3.3-70b-instruct:free"));
-    const systemPrompt = versionParams.systemPrompt;
+      const model = getModel(String(promptVersion.model || "meta-llama/llama-3.3-70b-instruct:free"));
+      const systemPrompt = versionParams.systemPrompt;
+      
+      const result: any = await callAI(model, systemPrompt, content);
+      text = result.text;
+      latencyMs = Date.now() - startTime;
+      
+      // Cache the response for 1 hour (3600 seconds)
+      if (!stream && text) {
+        const cacheKey = createHash("sha256")
+          .update(`${promptVersion.id}:${JSON.stringify(input)}`)
+          .digest("hex");
+        await redis.set(`cache:${cacheKey}`, text, { ex: 3600 });
+      }
+    } else {
+      text = cachedOutput as string;
+      latencyMs = Date.now() - startTime;
+    }
     
-    const result: any = await callAI(model, systemPrompt, content);
-    const text = result.text;
-    
-    const latencyMs = Date.now() - startTime;
-    const tokensIn = Math.ceil(content.length / 4);
+    const inputStr = JSON.stringify(input);
+    const tokensIn = Math.ceil(inputStr.length / 4);
     const tokensOut = Math.ceil(text.length / 4);
 
     await db.update(apiKeys)
@@ -121,6 +170,7 @@ export async function POST(req: NextRequest) {
         tokensIn,
         tokensOut,
         keyId: validKey.id,
+        cacheHit,
       },
     });
 

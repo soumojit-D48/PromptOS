@@ -10,6 +10,7 @@ interface ApiCallCompletedData {
   tokensIn: number;
   tokensOut: number;
   keyId: string;
+  cacheHit?: boolean;
 }
 
 export const logApiCall = inngest.createFunction(
