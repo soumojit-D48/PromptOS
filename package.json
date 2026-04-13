@@ -22,6 +22,8 @@
     "@trpc/client": "^11.13.0",
     "@trpc/react-query": "^11.13.0",
     "@trpc/server": "^11.13.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "ai": "^6.0.158",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
