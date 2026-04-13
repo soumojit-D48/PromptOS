@@ -41,6 +41,26 @@ export const promptsRouter = router({
       description: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const org = await ctx.db.query.organizations.findFirst({
+        where: eq(organizations.id, input.orgId),
+      });
+
+      if (org?.plan === "free") {
+        const activePrompts = await ctx.db.query.prompts.findMany({
+          where: and(
+            eq(prompts.orgId, input.orgId),
+            eq(prompts.isArchived, false)
+          ),
+        });
+
+        if (activePrompts.length >= 10) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Free plan allows 10 active prompts. Upgrade to Pro for more.",
+          });
+        }
+      }
+
       const [prompt] = await ctx.db.insert(prompts).values({
         orgId: input.orgId,
         createdBy: ctx.userId,

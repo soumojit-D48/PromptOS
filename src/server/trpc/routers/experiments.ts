@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { router, orgProc, editorProc } from "../init";
-import { experiments, experimentRuns, prompts, promptVersions } from "@/server/db/schema";
-import { eq, and, desc, sql, count } from "drizzle-orm";
+import { experiments, experimentRuns, prompts, promptVersions, organizations } from "@/server/db/schema";
+import { eq, and, desc, sql, count, gte, sql as sqlFn } from "drizzle-orm";
 import { inngest } from "@/server/inngest/client";
 import { db } from "@/server/db";
+import { TRPCError } from "@trpc/server";
 
 export const experimentsRouter = router({
   list: orgProc
@@ -82,11 +83,40 @@ export const experimentsRouter = router({
       const versionIds = versions.map(v => v.id);
       const inputVersionIds = Object.keys(input.trafficSplit);
       
-      const invalidVersions = inputVersionIds.filter(id => !versionIds.includes(id));
+const invalidVersions = inputVersionIds.filter(id => !versionIds.includes(id));
       if (invalidVersions.length > 0) {
-        throw new Error("Invalid version IDs in traffic split");
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid version IDs in traffic split",
+        });
       }
-      
+
+      const org = await ctx.db.query.organizations.findFirst({
+        where: eq(organizations.id, input.orgId),
+      });
+
+      if (org?.plan === "free") {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+        const recentExperiments = await ctx.db
+          .select({ count: sqlFn<number>`count(*)` })
+          .from(experiments)
+          .where(
+            and(
+              eq(experiments.promptId, input.promptId),
+              gte(experiments.createdAt, oneMonthAgo)
+            )
+          );
+
+        if (recentExperiments[0]?.count >= 5) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Free plan allows 5 experiments per month. Upgrade to Pro for more.",
+          });
+        }
+      }
+
       const [experiment] = await ctx.db.insert(experiments).values({
         promptId: input.promptId,
         name: input.name,
