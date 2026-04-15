@@ -1,19 +1,25 @@
 import { z } from "zod";
-import { router, orgProc, editorProc } from "../init";
-import { experiments, experimentRuns, prompts, promptVersions, organizations } from "@/server/db/schema";
+import { router, protectedProc, orgProc, editorProc } from "../init";
+import { experiments, experimentRuns, prompts, promptVersions, organizations, orgMembers } from "@/server/db/schema";
 import { eq, and, desc, sql, count, gte, sql as sqlFn } from "drizzle-orm";
 import { inngest } from "@/server/inngest/client";
 import { db } from "@/server/db";
 import { TRPCError } from "@trpc/server";
 
 export const experimentsRouter = router({
-  list: orgProc
+  list: protectedProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid().optional() }))
     .query(async ({ ctx, input }) => {
       const where = input.promptId
-        ? and(eq(experiments.promptId, input.promptId))
+        ? and(eq(experiments.promptId, input.promptId as string))
         : undefined;
       
+      // Check membership
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+
       return ctx.db.query.experiments.findMany({
         where,
         orderBy: [desc(experiments.createdAt)],
@@ -23,7 +29,7 @@ export const experimentsRouter = router({
       });
     }),
 
-  get: orgProc
+  get: protectedProc
     .input(z.object({ orgId: z.string().uuid(), experimentId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const experiment = await ctx.db.query.experiments.findFirst({
@@ -50,7 +56,7 @@ export const experimentsRouter = router({
       };
     }),
 
-  create: editorProc
+  create: protectedProc
     .input(z.object({
       orgId: z.string().uuid(),
       promptId: z.string().uuid(),
@@ -61,6 +67,13 @@ export const experimentsRouter = router({
       enableScoring: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Check membership
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role === "viewer") throw new TRPCError({ code: "FORBIDDEN", message: "Editor or Owner role required" });
+
       const splitValues = Object.values(input.trafficSplit);
       const splitSum = splitValues.reduce((a, b) => a + b, 0);
       
@@ -126,7 +139,7 @@ const invalidVersions = inputVersionIds.filter(id => !versionIds.includes(id));
       return experiment;
     }),
 
-  start: editorProc
+  start: protectedProc
     .input(z.object({ orgId: z.string().uuid(), experimentId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [experiment] = await ctx.db
@@ -143,7 +156,7 @@ const invalidVersions = inputVersionIds.filter(id => !versionIds.includes(id));
       return experiment;
     }),
 
-  results: orgProc
+  results: protectedProc
     .input(z.object({ orgId: z.string().uuid(), experimentId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const experiment = await ctx.db.query.experiments.findFirst({
@@ -202,7 +215,7 @@ const invalidVersions = inputVersionIds.filter(id => !versionIds.includes(id));
       return results;
     }),
 
-  declare: orgProc
+  declare: protectedProc
     .input(z.object({ orgId: z.string().uuid(), experimentId: z.string().uuid(), versionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const experiment = await ctx.db.query.experiments.findFirst({

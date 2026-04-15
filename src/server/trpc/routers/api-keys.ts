@@ -1,15 +1,21 @@
 import { z } from "zod";
-import { router, orgProc, ownerProc } from "../init";
+import { router, protectedProc, orgProc, ownerProc } from "../init";
 import { db } from "@/server/db";
-import { apiKeys } from "@/server/db/schema";
+import { apiKeys, orgMembers } from "@/server/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { generateApiKey, hashApiKey } from "@/lib/api-key";
+import { TRPCError } from "@trpc/server";
 
 export const apiKeysRouter = router({
-  list: orgProc
+  list: protectedProc
     .input(z.object({ orgId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const { orgId } = input;
+      
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
       
       const keys = await db.query.apiKeys.findMany({
         where: and(

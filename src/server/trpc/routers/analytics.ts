@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, orgProc } from "../init";
+import { router, protectedProc, orgProc } from "../init";
 import { db } from "@/server/db";
 import { experimentRuns, promptVersions, prompts, experiments } from "@/server/db/schema";
 import { eq, and, gte, lte, desc, sql, avg, count, sum } from "drizzle-orm";
@@ -33,7 +33,7 @@ function estimateCost(tokensIn: number, tokensOut: number, model: string): numbe
 }
 
 export const analyticsRouter = router({
-  summary: orgProc
+  summary: protectedProc
     .input(z.object({
       orgId: z.string(),
       promptId: z.string().optional(),
@@ -107,7 +107,7 @@ export const analyticsRouter = router({
       };
     }),
 
-  timeline: orgProc
+  timeline: protectedProc
     .input(z.object({
       orgId: z.string(),
       window: timeWindowSchema,
@@ -145,7 +145,7 @@ export const analyticsRouter = router({
       }));
     }),
 
-  orgSummary: orgProc
+  orgSummary: protectedProc
     .input(z.object({ orgId: z.string() }))
     .query(async ({ input }) => {
       const { orgId } = input;
@@ -194,7 +194,7 @@ export const analyticsRouter = router({
       };
     }),
 
-  promptSummary: orgProc
+  promptSummary: protectedProc
     .input(z.object({
       orgId: z.string(),
       promptId: z.string(),

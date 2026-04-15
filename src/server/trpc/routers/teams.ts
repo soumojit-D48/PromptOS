@@ -5,9 +5,15 @@ import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 export const teamsRouter = router({
-  members: orgProc
+  members: protectedProc
     .input(z.object({ orgId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      // Check membership
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+
       return ctx.db
         .select({
           id: orgMembers.id,
@@ -22,7 +28,7 @@ export const teamsRouter = router({
         .where(eq(orgMembers.orgId, input.orgId));
     }),
 
-  invite: ownerProc
+  invite: protectedProc
     .input(z.object({
       orgId: z.string().uuid(),
       email: z.string().email(),
@@ -79,7 +85,7 @@ export const teamsRouter = router({
       return { success: true, message: `Invitation sent to ${email}` };
     }),
 
-  updateRole: ownerProc
+  updateRole: protectedProc
     .input(z.object({
       orgId: z.string().uuid(),
       memberId: z.string().uuid(),
@@ -88,7 +94,11 @@ export const teamsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { orgId, memberId, newRole } = input;
 
-      if (ctx.role !== "owner") {
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role !== "owner") {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Only owners can change roles",
@@ -125,7 +135,7 @@ export const teamsRouter = router({
       return { success: true };
     }),
 
-  remove: ownerProc
+  remove: protectedProc
     .input(z.object({
       orgId: z.string().uuid(),
       memberId: z.string().uuid(),
@@ -133,7 +143,11 @@ export const teamsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { orgId, memberId } = input;
 
-      if (ctx.role !== "owner") {
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role !== "owner") {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Only owners can remove members",
@@ -169,7 +183,7 @@ export const teamsRouter = router({
       return { success: true };
     }),
 
-  transferOwner: ownerProc
+  transferOwner: protectedProc
     .input(z.object({
       orgId: z.string().uuid(),
       newOwnerId: z.string().uuid(),
@@ -177,7 +191,11 @@ export const teamsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { orgId, newOwnerId } = input;
 
-      if (ctx.role !== "owner") {
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role !== "owner") {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Only owners can transfer ownership",

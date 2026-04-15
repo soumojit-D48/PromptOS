@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { router, orgProc, editorProc } from "../init";
-import { promptVersions, prompts } from "@/server/db/schema";
+import { router, protectedProc, orgProc, editorProc } from "../init";
+import { promptVersions, prompts, orgMembers } from "@/server/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { inngest } from "@/server/inngest/client";
+import { TRPCError } from "@trpc/server";
 
 function computeDiff(contentA: string, contentB: string) {
   const linesA = contentA.split("\n");
@@ -29,7 +30,7 @@ function computeDiff(contentA: string, contentB: string) {
 }
 
 export const versionsRouter = router({
-  list: orgProc
+  list: protectedProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const prompt = await ctx.db.query.prompts.findFirst({
@@ -43,7 +44,7 @@ export const versionsRouter = router({
       });
     }),
 
-  get: orgProc
+  get: protectedProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid(), versionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const prompt = await ctx.db.query.prompts.findFirst({
@@ -56,7 +57,7 @@ export const versionsRouter = router({
       });
     }),
 
-  create: editorProc
+  create: protectedProc
     .input(z.object({
       orgId: z.string().uuid(),
       promptId: z.string().uuid(),
@@ -66,6 +67,13 @@ export const versionsRouter = router({
       commitMsg: z.string().max(140).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Check membership
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role === "viewer") throw new TRPCError({ code: "FORBIDDEN", message: "Editor or Owner role required" });
+
       const prompt = await ctx.db.query.prompts.findFirst({
         where: and(eq(prompts.id, input.promptId), eq(prompts.orgId, input.orgId)),
       });
@@ -91,17 +99,25 @@ export const versionsRouter = router({
 
       await ctx.db.update(prompts).set({ updatedAt: new Date() }).where(eq(prompts.id, input.promptId));
 
-      await inngest.send({
-        name: "prompt/version.created",
-        data: { versionId: version.id },
-      });
+      if (process.env.INNGEST_EVENT_KEY && process.env.INNGEST_EVENT_KEY !== "your_inngest_event_key") {
+        await inngest.send({
+          name: "prompt/version.created",
+          data: { versionId: version.id },
+        });
+      }
 
       return version;
     }),
 
-  publish: editorProc
+  publish: protectedProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid(), versionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Check membership
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role === "viewer") throw new TRPCError({ code: "FORBIDDEN", message: "Editor or Owner role required" });
       await ctx.db
         .update(promptVersions)
         .set({ isPublished: false })
@@ -118,9 +134,16 @@ export const versionsRouter = router({
       return version;
     }),
 
-  rollback: editorProc
+  rollback: protectedProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid(), versionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Check membership
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role === "viewer") throw new TRPCError({ code: "FORBIDDEN", message: "Editor or Owner role required" });
+
       const targetVersion = await ctx.db.query.promptVersions.findFirst({
         where: eq(promptVersions.id, input.versionId),
       });
@@ -147,9 +170,15 @@ export const versionsRouter = router({
       return version;
     }),
 
-  diff: orgProc
+  diff: protectedProc
     .input(z.object({ orgId: z.string().uuid(), versionIdA: z.string().uuid(), versionIdB: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      // Check membership
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+
       const [versionA, versionB] = await Promise.all([
         ctx.db.query.promptVersions.findFirst({ where: eq(promptVersions.id, input.versionIdA) }),
         ctx.db.query.promptVersions.findFirst({ where: eq(promptVersions.id, input.versionIdB) }),

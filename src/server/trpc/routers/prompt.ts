@@ -20,7 +20,7 @@ export const promptsRouter = router({
       });
     }),
 
-  get: orgProc
+  get: protectedProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const prompt = await ctx.db.query.prompts.findFirst({
@@ -85,7 +85,7 @@ export const promptsRouter = router({
       return prompt;
     }),
 
-  update: editorProc
+  update: protectedProc
     .input(z.object({
       orgId: z.string().uuid(),
       promptId: z.string().uuid(),
@@ -116,7 +116,7 @@ export const promptsRouter = router({
       return prompt;
     }),
 
-  search: orgProc
+  search: protectedProc
     .input(z.object({ orgId: z.string().uuid(), query: z.string() }))
     .query(async ({ ctx, input }) => {
       if (!input.query.trim()) {
@@ -168,7 +168,7 @@ export const promptsRouter = router({
       }));
     }),
 
-  similar: orgProc
+  similar: protectedProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const currentPrompt = await ctx.db.query.prompts.findFirst({
