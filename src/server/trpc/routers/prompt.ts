@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { router, orgProc, editorProc, ownerProc } from "../init";
-import { prompts, promptVersions, promptAttachments, organizations } from "@/server/db/schema";
+import { router, protectedProc, orgProc, editorProc, ownerProc } from "../init";
+import { prompts, promptVersions, promptAttachments, organizations, orgMembers } from "@/server/db/schema";
 import { eq, and, or, ilike, desc, isNotNull } from "drizzle-orm";
 import { embedText, cosineSimilarity } from "@/server/ai/embed";
 import { db } from "@/server/db";
@@ -8,13 +8,13 @@ import { TRPCError } from "@trpc/server";
 import { inngest } from "@/server/inngest/client";
 
 export const promptsRouter = router({
-  list: orgProc
+  list: protectedProc
     .input(z.object({ orgId: z.string().uuid(), includeArchived: z.boolean().optional() }))
-    .query(async ({ ctx, input }) => {
+    .query(async ({ input }) => {
       const where = input.includeArchived
         ? eq(prompts.orgId, input.orgId)
         : and(eq(prompts.orgId, input.orgId), eq(prompts.isArchived, false));
-      return ctx.db.query.prompts.findMany({
+      return db.query.prompts.findMany({
         where,
         orderBy: [desc(prompts.updatedAt)],
       });
@@ -34,14 +34,21 @@ export const promptsRouter = router({
       return prompt;
     }),
 
-  create: editorProc
+  create: protectedProc
     .input(z.object({
       orgId: z.string().uuid(),
       name: z.string().min(1).max(100),
       description: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const org = await ctx.db.query.organizations.findFirst({
+      // Check membership
+      const membership = await db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role === "viewer") throw new TRPCError({ code: "FORBIDDEN", message: "Editor or Owner role required" });
+
+      const org = await db.query.organizations.findFirst({
         where: eq(organizations.id, input.orgId),
       });
 
@@ -68,10 +75,12 @@ export const promptsRouter = router({
         description: input.description,
       }).returning();
 
-      await inngest.send({
-        name: "prompt/created",
-        data: { promptId: prompt.id, orgId: input.orgId },
-      });
+      if (process.env.INNGEST_EVENT_KEY && process.env.INNGEST_EVENT_KEY !== "your_inngest_event_key") {
+        await inngest.send({
+          name: "prompt/created",
+          data: { promptId: prompt.id, orgId: input.orgId },
+        });
+      }
 
       return prompt;
     }),

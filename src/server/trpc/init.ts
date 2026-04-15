@@ -1,6 +1,5 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { cache } from "react";
-import superjson from "superjson";
 import { auth } from "@/lib/auth";
 import { db } from "@/server/db";
 import { orgMembers } from "@/server/db/schema";
@@ -13,10 +12,15 @@ export const createTRPCContext = cache(async () => {
 
 const t = initTRPC
   .context<typeof createTRPCContext>()
-  .create({ transformer: superjson });
+  .create();
 
 export const router = t.router;
 export const publicProc = t.procedure;
+
+export interface ContextWithOrg {
+  orgId: string;
+  role: "owner" | "editor" | "viewer";
+}
 
 export const protectedProc = t.procedure.use(async ({ ctx, next }) => {
   if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });

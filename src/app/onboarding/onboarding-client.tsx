@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { api } from "@/lib/trpc-client";
 
 interface OnboardingClientProps {
   userId: string;
@@ -26,100 +27,71 @@ Be clear, concise, and accurate in your responses.`;
 export function OnboardingClient({ userId }: OnboardingClientProps) {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
 
-  // Step 1: Organization
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
   const [orgId, setOrgId] = useState("");
 
-  // Step 2: Prompt
   const [promptName, setPromptName] = useState("");
   const [promptDesc, setPromptDesc] = useState("");
   const [promptId, setPromptId] = useState("");
 
-  // Step 3: Version
   const [commitMsg, setCommitMsg] = useState("Initial version");
+
+  const createOrgMutation = api.organization.create.useMutation({
+    onSuccess: (org) => {
+      setOrgId(org.id);
+      setStep(2);
+    },
+    onError: (e) => {
+      console.error("Failed to create org:", e);
+    },
+  });
+
+  const createPromptMutation = api.prompts.create.useMutation({
+    onSuccess: (prompt) => {
+      setPromptId(prompt.id);
+      setStep(3);
+    },
+    onError: (e) => {
+      console.error("Failed to create prompt:", e);
+    },
+  });
+
+  const saveVersionMutation = api.versions.create.useMutation({
+    onSuccess: () => {
+      router.push(`/prompts/${promptId}`);
+    },
+    onError: (e) => {
+      console.error("Failed to save version:", e);
+    },
+  });
 
   const handleOrgNameChange = (name: string) => {
     setOrgName(name);
     setOrgSlug(generateSlug(name));
   };
 
-  const createOrg = async () => {
+  const createOrg = () => {
     if (!orgName.trim() || !orgSlug.trim()) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/trpc/organization.create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: orgName, slug: orgSlug }),
-      });
-      const data = await res.json();
-      if (data.result?.data?.json?.id) {
-        setOrgId(data.result.data.json.id);
-        setStep(2);
-      }
-    } catch (e) {
-      console.error("Failed to create org:", e);
-    } finally {
-      setLoading(false);
-    }
+    createOrgMutation.mutate({ name: orgName, slug: orgSlug });
   };
 
-  const createPrompt = async () => {
+  const createPrompt = () => {
     if (!promptName.trim() || !orgId) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/trpc/prompts.create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orgId,
-          name: promptName,
-          description: promptDesc,
-        }),
-      });
-      const data = await res.json();
-      if (data.result?.data?.json?.id) {
-        setPromptId(data.result.data.json.id);
-        setStep(3);
-      }
-    } catch (e) {
-      console.error("Failed to create prompt:", e);
-    } finally {
-      setLoading(false);
-    }
+    createPromptMutation.mutate({ orgId, name: promptName, description: promptDesc });
   };
 
-  const saveVersion = async () => {
+  const saveVersion = () => {
     if (!promptId || !orgId) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/trpc/versions.create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orgId,
-          promptId,
-          content: STARTER_PROMPT,
-          model: "meta-llama/llama-3.3-70b-instruct:free",
-          params: {
-            temperature: 0.7,
-            maxTokens: 2048,
-          },
-          commitMsg,
-        }),
-      });
-      const data = await res.json();
-      if (data.result?.data?.json?.id) {
-        router.push(`/prompts/${promptId}`);
-      }
-    } catch (e) {
-      console.error("Failed to save version:", e);
-    } finally {
-      setLoading(false);
-    }
+    saveVersionMutation.mutate({
+      orgId,
+      promptId,
+      content: STARTER_PROMPT,
+      model: "meta-llama/llama-3.3-70b-instruct:free",
+      params: { temperature: 0.7, maxTokens: 2048 },
+      commitMsg,
+    });
   };
 
   const skipStep = (next: number) => {
@@ -128,7 +100,6 @@ export function OnboardingClient({ userId }: OnboardingClientProps) {
 
   return (
     <div className="max-w-xl mx-auto py-12">
-      {/* Progress */}
       <div className="flex gap-2 mb-8">
         {[1, 2, 3].map((s) => (
           <div
@@ -140,7 +111,6 @@ export function OnboardingClient({ userId }: OnboardingClientProps) {
         ))}
       </div>
 
-      {/* Step 1: Organization */}
       {step === 1 && (
         <Card>
           <CardHeader>
@@ -169,8 +139,8 @@ export function OnboardingClient({ userId }: OnboardingClientProps) {
               />
             </div>
             <div className="flex gap-3">
-              <Button onClick={createOrg} disabled={loading || !orgName.trim()}>
-                {loading ? "Creating..." : "Continue"}
+              <Button onClick={createOrg} disabled={createOrgMutation.isPending || !orgName.trim()}>
+                {createOrgMutation.isPending ? "Creating..." : "Continue"}
               </Button>
               <Button variant="ghost" onClick={() => router.push("/prompts")}>
                 Skip
@@ -180,7 +150,6 @@ export function OnboardingClient({ userId }: OnboardingClientProps) {
         </Card>
       )}
 
-      {/* Step 2: First Prompt */}
       {step === 2 && (
         <Card>
           <CardHeader>
@@ -209,8 +178,8 @@ export function OnboardingClient({ userId }: OnboardingClientProps) {
               />
             </div>
             <div className="flex gap-3">
-              <Button onClick={createPrompt} disabled={loading || !promptName.trim()}>
-                {loading ? "Creating..." : "Continue"}
+              <Button onClick={createPrompt} disabled={createPromptMutation.isPending || !promptName.trim()}>
+                {createPromptMutation.isPending ? "Creating..." : "Continue"}
               </Button>
               <Button variant="ghost" onClick={() => skipStep(3)}>
                 Skip
@@ -220,7 +189,6 @@ export function OnboardingClient({ userId }: OnboardingClientProps) {
         </Card>
       )}
 
-      {/* Step 3: Save Version */}
       {step === 3 && (
         <Card>
           <CardHeader>
@@ -240,14 +208,14 @@ export function OnboardingClient({ userId }: OnboardingClientProps) {
               />
             </div>
             <div className="bg-muted p-4 rounded-lg">
-              <p className="text-sm font-muted-foreground">Preview:</p>
+              <p className="text-sm text-muted-foreground">Preview:</p>
               <pre className="text-sm mt-2 whitespace-pre-wrap">
                 {STARTER_PROMPT}
               </pre>
             </div>
             <div className="flex gap-3">
-              <Button onClick={saveVersion} disabled={loading}>
-                {loading ? "Saving..." : "Save & Finish"}
+              <Button onClick={saveVersion} disabled={saveVersionMutation.isPending}>
+                {saveVersionMutation.isPending ? "Saving..." : "Save & Finish"}
               </Button>
               <Button variant="ghost" onClick={() => router.push("/prompts")}>
                 Skip
