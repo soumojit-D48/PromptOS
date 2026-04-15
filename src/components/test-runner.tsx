@@ -23,6 +23,10 @@ interface RunHistory {
 }
 
 const FREE_MODELS = [
+  { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "Nemotron 3 Super 120B" },
+  { id: "z-ai/glm-4.5-air:free", name: "GLM-4.5 Air" },
+  { id: "openai/gpt-oss-120b:free", name: "GPT-OSS 120B" },
+  { id: "nvidia/nemotron-3-nano-30b-a3b:free", name: "Nemotron 3 Nano 30B" },
   { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B" },
   { id: "google/gemma-3-27b-it:free", name: "Gemma 3 27B" },
   { id: "mistralai/mistral-7b-instruct:free", name: "Mistral 7B" },
@@ -49,10 +53,10 @@ export function TestRunner({ versionId, variables, defaultModel }: TestRunnerPro
     setInputValues(initial);
   }, [variables]);
 
-  const canRun = variables.every((v) => inputValues[v]?.trim());
+  const canRun = !versionId ? false : variables.every((v) => inputValues[v]?.trim());
 
   const handleRun = async () => {
-    if (!canRun || isRunning) return;
+    if (!versionId || !canRun || isRunning) return;
 
     setIsRunning(true);
     setOutput("");

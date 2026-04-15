@@ -38,11 +38,15 @@ interface PromptEditorProps {
 }
 
 const FREE_MODELS = [
+  { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "Nemotron 3 Super 120B" },
+  { id: "z-ai/glm-4.5-air:free", name: "GLM-4.5 Air" },
+  { id: "openai/gpt-oss-120b:free", name: "GPT-OSS 120B" },
+  { id: "nvidia/nemotron-3-nano-30b-a3b:free", name: "Nemotron 3 Nano 30B" },
   { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B" },
   { id: "google/gemma-3-27b-it:free", name: "Gemma 3 27B" },
-  { id: "mistralai/mistral-7b-instruct:free", name: "Mistral 7B" },
+  { id: "mistralai/mistral-7b-instruct:free", name: "Mistral 7B" }, // nvidia/nemotron-3-super-120b-a12b:free
   { id: "qwen/qwen-2.5-72b-instruct:free", name: "Qwen 2.5 72B" },
-  { id: "deepseek/deepseek-r1:free", name: "DeepSeek R1" },
+  { id: "deepseek/deepseek-r1:free", name: "DeepSeek R1" }, //arcee-ai/trinity-large-preview:free
 ];
 
 export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion, onVersionCreated }: PromptEditorProps) {
@@ -50,7 +54,7 @@ export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion, o
   const initialParams = latestVersion?.params as { temperature?: number; maxTokens?: number; systemPrompt?: string } | undefined;
   const [content, setContent] = useState(latestVersion?.content || "");
   const [systemPrompt, setSystemPrompt] = useState(initialParams?.systemPrompt || "");
-  const [model, setModel] = useState(latestVersion?.model || "meta-llama/llama-3.3-70b-instruct:free");
+  const [model, setModel] = useState(latestVersion?.model || "nvidia/nemotron-3-super-120b-a12b:free");
   const [temperature, setTemperature] = useState(initialParams?.temperature ?? 0.7);
   const [maxTokens, setMaxTokens] = useState(initialParams?.maxTokens ?? 1000);
   const [commitMsg, setCommitMsg] = useState("");
@@ -69,8 +73,18 @@ export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion, o
       setTemperature(params?.temperature ?? 0.7);
       setMaxTokens(params?.maxTokens ?? 1000);
       setSystemPrompt(params?.systemPrompt || "");
+      const versionWithDate: Version = {
+        id: version.id,
+        versionNum: version.versionNum,
+        content: version.content,
+        model: version.model,
+        params: params || { temperature: 0.7, maxTokens: 1000 },
+        isPublished: version.isPublished,
+        commitMsg: version.commitMsg,
+        createdAt: new Date(version.createdAt),
+      };
       if (onVersionCreated) {
-        onVersionCreated(version as Version);
+        onVersionCreated(versionWithDate);
       } else {
         router.refresh();
       }
@@ -101,6 +115,8 @@ export function PromptEditor({ prompt, orgId, latestVersion, publishedVersion, o
         maxTokens !== (params?.maxTokens ?? 1000) ||
         systemPrompt !== (params?.systemPrompt || "")
       );
+    } else {
+      setHasChanges(content.trim().length > 0);
     }
   }, [content, model, temperature, maxTokens, systemPrompt, latestVersion]);
 
