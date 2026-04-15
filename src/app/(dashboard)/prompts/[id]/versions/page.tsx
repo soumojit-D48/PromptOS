@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { orgMembers, prompts, promptVersions } from "@/server/db/schema";
 import { db } from "@/server/db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { VersionDiff } from "@/components/version-diff";
 
 interface Props {
@@ -20,7 +21,17 @@ export default async function VersionHistoryPage({ params }: Props) {
     .where(eq(orgMembers.userId, session.user.id));
 
   if (memberships.length === 0) redirect("/onboarding");
-  const orgId = memberships[0].orgId;
+
+  const cookieStore = await cookies();
+  const currentOrgIdCookie = cookieStore.get("currentOrgId")?.value;
+
+  let orgId = memberships[0].orgId;
+  if (currentOrgIdCookie) {
+    const hasMembership = memberships.find(m => m.orgId === currentOrgIdCookie);
+    if (hasMembership) {
+      orgId = currentOrgIdCookie;
+    }
+  }
 
   const prompt = await db.query.prompts.findFirst({
     where: and(eq(prompts.id, id), eq(prompts.orgId, orgId)),

@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { orgMembers, prompts, promptVersions } from "@/server/db/schema";
 import { db } from "@/server/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { PromptEditor } from "@/components/prompt-editor";
 import { VersionList } from "@/components/version-list";
 import { SimilarPrompts } from "@/components/similar-prompts";
@@ -38,10 +39,20 @@ export default async function PromptDetailPage({ params, searchParams }: Props) 
     .where(eq(orgMembers.userId, session.user.id));
 
   if (memberships.length === 0) redirect("/onboarding");
-  const orgId = memberships[0].orgId;
+
+  const cookieStore = await cookies();
+  const currentOrgIdCookie = cookieStore.get("currentOrgId")?.value;
+
+  let orgId = memberships[0].orgId;
+  if (currentOrgIdCookie) {
+    const hasMembership = memberships.find(m => m.orgId === currentOrgIdCookie);
+    if (hasMembership) {
+      orgId = currentOrgIdCookie;
+    }
+  }
 
   const prompt = await db.query.prompts.findFirst({
-    where: eq(prompts.id, id),
+    where: and(eq(prompts.id, id), eq(prompts.orgId, orgId)),
   });
 
   if (!prompt) {

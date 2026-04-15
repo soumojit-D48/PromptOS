@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { db } from "@/server/db";
 import { orgMembers, organizations } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
@@ -15,8 +16,19 @@ export default async function ApiKeysPage() {
 
   if (!memberships.length) redirect("/onboarding");
 
+  const cookieStore = await cookies();
+  const currentOrgIdCookie = cookieStore.get("currentOrgId")?.value;
+
+  let orgId = memberships[0].orgId;
+  if (currentOrgIdCookie) {
+    const hasMembership = memberships.find(m => m.orgId === currentOrgIdCookie);
+    if (hasMembership) {
+      orgId = currentOrgIdCookie;
+    }
+  }
+
   const org = await db.query.organizations.findFirst({
-    where: eq(organizations.id, memberships[0].orgId),
+    where: eq(organizations.id, orgId),
   });
 
   if (!org) redirect("/onboarding");

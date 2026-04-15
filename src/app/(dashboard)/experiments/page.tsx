@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { orgMembers, organizations, experiments, prompts } from "@/server/db/schema";
 import { db } from "@/server/db";
@@ -16,9 +17,24 @@ export default async function ExperimentsPage() {
 
   if (memberships.length === 0) redirect("/onboarding");
 
-  const orgId = memberships[0].orgId;
+  const cookieStore = await cookies();
+  const currentOrgIdCookie = cookieStore.get("currentOrgId")?.value;
+
+  let orgId = memberships[0].orgId;
+  if (currentOrgIdCookie) {
+    const hasMembership = memberships.find(m => m.orgId === currentOrgIdCookie);
+    if (hasMembership) {
+      orgId = currentOrgIdCookie;
+    }
+  }
+
+  const orgPrompts = await db.query.prompts.findMany({
+    where: eq(prompts.orgId, orgId),
+  });
+  const promptIds = orgPrompts.map(p => p.id);
 
   const allExperiments = await db.query.experiments.findMany({
+    where: promptIds.length > 0 ? eq(experiments.promptId, promptIds[0]) : undefined,
     orderBy: [desc(experiments.createdAt)],
   });
 

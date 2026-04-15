@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { orgMembers, organizations, users } from "@/server/db/schema";
 import { db } from "@/server/db";
@@ -18,8 +19,18 @@ export default async function TeamPage() {
     redirect("/onboarding");
   }
 
-  const currentOrgId = memberships[0].orgId;
-  const currentMember = memberships[0];
+  const cookieStore = await cookies();
+  const currentOrgIdCookie = cookieStore.get("currentOrgId")?.value;
+
+  let currentOrgId = memberships[0].orgId;
+  if (currentOrgIdCookie) {
+    const hasMembership = memberships.find(m => m.orgId === currentOrgIdCookie);
+    if (hasMembership) {
+      currentOrgId = currentOrgIdCookie;
+    }
+  }
+
+  const currentMember = memberships.find(m => m.orgId === currentOrgId) || memberships[0];
 
   const org = await db.query.organizations.findFirst({
     where: eq(organizations.id, currentOrgId),

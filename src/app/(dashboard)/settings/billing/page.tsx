@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/server/db";
 import { organizations, orgMembers } from "@/server/db/schema";
@@ -26,7 +27,16 @@ export default async function BillingPage({
     return <div>No organization found</div>;
   }
 
-  const orgId = memberships[0].orgId;
+  const cookieStore = await cookies();
+  const currentOrgIdCookie = cookieStore.get("currentOrgId")?.value;
+
+  let orgId = memberships[0].orgId;
+  if (currentOrgIdCookie) {
+    const hasMembership = memberships.find(m => m.orgId === currentOrgIdCookie);
+    if (hasMembership) {
+      orgId = currentOrgIdCookie;
+    }
+  }
   
   const org = await db.query.organizations.findFirst({
     where: eq(organizations.id, orgId),

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { orgMembers, organizations } from "@/server/db/schema";
 import { db } from "@/server/db";
@@ -24,7 +25,18 @@ export default async function DashboardLayout({
     redirect("/onboarding");
   }
 
-  const currentOrgId = memberships[0].orgId;
+  // Check cookie for selected org
+  const cookieStore = await cookies();
+  const currentOrgIdCookie = cookieStore.get("currentOrgId")?.value;
+  
+  // Use cookie org if user is member of it, otherwise use first membership
+  let currentOrgId = memberships[0].orgId;
+  if (currentOrgIdCookie) {
+    const hasMembership = memberships.find(m => m.orgId === currentOrgIdCookie);
+    if (hasMembership) {
+      currentOrgId = currentOrgIdCookie;
+    }
+  }
 
   const orgs = await Promise.all(
     memberships.map(async (m) => {
