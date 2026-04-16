@@ -45,10 +45,37 @@ export function VersionDiff({ versions }: VersionDiffProps) {
     }
   }
 
-  if (versions.length < 2) {
+  if (versions.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Need at least 2 versions to compare</p>
+        <p className="text-muted-foreground">No versions saved yet</p>
+      </div>
+    );
+  }
+
+  if (versions.length === 1) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-muted p-4 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-medium">v{versions[0].versionNum}</span>
+            {versions[0].isPublished && (
+              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Published</span>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mb-2">
+            {versions[0].commitMsg || "No commit message"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {new Date(versions[0].createdAt).toLocaleString()}
+          </p>
+          <pre className="mt-4 whitespace-pre-wrap text-sm bg-background p-4 rounded border overflow-x-auto">
+            {versions[0].content}
+          </pre>
+        </div>
+        <p className="text-center text-muted-foreground text-sm">
+          Save another version to compare
+        </p>
       </div>
     );
   }
