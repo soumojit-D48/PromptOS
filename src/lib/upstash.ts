@@ -1,6 +1,10 @@
 import { Redis } from "@upstash/redis";
 
-export const redis = new Redis({
+const hasRedisConfig = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+
+export const redis = hasRedisConfig ? new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+}) : null;
+
+export const isRedisAvailable = () => hasRedisConfig;

@@ -7,7 +7,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { verifyApiKey } from "@/lib/api-key";
 import { getModel } from "@/server/ai/openrouter";
 import { inngest } from "@/server/inngest/client";
-import { redis } from "@/lib/upstash";
+import { redis, isRedisAvailable } from "@/lib/upstash";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createHash } from "crypto";
 
@@ -113,12 +113,12 @@ export async function POST(req: NextRequest) {
     let cacheHit = false;
     let cachedOutput = null;
     
-    if (!stream) {
+    if (!stream && isRedisAvailable()) {
       const cacheKey = createHash("sha256")
         .update(`${promptVersion.id}:${JSON.stringify(input)}`)
         .digest("hex");
       
-      cachedOutput = await redis.get(`cache:${cacheKey}`);
+      cachedOutput = await redis!.get(`cache:${cacheKey}`);
       if (cachedOutput) {
         cacheHit = true;
       }
@@ -142,11 +142,11 @@ export async function POST(req: NextRequest) {
       latencyMs = Date.now() - startTime;
       
       // Cache the response for 1 hour (3600 seconds)
-      if (!stream && text) {
+      if (!stream && text && isRedisAvailable()) {
         const cacheKey = createHash("sha256")
           .update(`${promptVersion.id}:${JSON.stringify(input)}`)
           .digest("hex");
-        await redis.set(`cache:${cacheKey}`, text, { ex: 3600 });
+        await redis!.set(`cache:${cacheKey}`, text, { ex: 3600 });
       }
     } else {
       text = cachedOutput as string;
@@ -161,18 +161,25 @@ export async function POST(req: NextRequest) {
       .set({ lastUsed: new Date() })
       .where(eq(apiKeys.id, validKey.id));
 
-    await inngest.send({
-      name: "api/call.completed",
-      data: {
-        versionId: promptVersion.id,
-        orgId: validKey.orgId,
-        latencyMs,
-        tokensIn,
-        tokensOut,
-        keyId: validKey.id,
-        cacheHit,
-      },
-    });
+    // Send analytics event (optional - won't fail if Inngest not configured)
+    try {
+      if (process.env.INNGEST_EVENT_KEY && process.env.INNGEST_EVENT_KEY !== "your_inngest_event_key") {
+        await inngest.send({
+          name: "api/call.completed",
+          data: {
+            versionId: promptVersion.id,
+            orgId: validKey.orgId,
+            latencyMs,
+            tokensIn,
+            tokensOut,
+            keyId: validKey.id,
+            cacheHit,
+          },
+        });
+      }
+    } catch (inngestError) {
+      console.error("Inngest error:", inngestError);
+    }
 
     if (stream) {
       const encoder = new TextEncoder();
@@ -191,7 +198,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      output: text,
+      text,
       latencyMs,
       tokensIn,
       tokensOut,

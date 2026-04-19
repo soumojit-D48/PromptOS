@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProc, orgProc, ownerProc } from "../init";
+import { router, protectedProc } from "../init";
 import { db } from "@/server/db";
 import { apiKeys, orgMembers } from "@/server/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
@@ -33,14 +33,20 @@ export const apiKeysRouter = router({
       }));
     }),
 
-  create: ownerProc
+  create: protectedProc
     .input(z.object({
       orgId: z.string(),
       name: z.string().min(1).max(100),
       permissions: z.enum(["execute", "read"]).default("execute"),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { orgId, name, permissions } = input;
+      
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role !== "owner") throw new TRPCError({ code: "FORBIDDEN", message: "Owner role required" });
       
       const plainKey = generateApiKey();
       const keyHash = await hashApiKey(plainKey);
@@ -63,13 +69,19 @@ export const apiKeysRouter = router({
       };
     }),
 
-  revoke: ownerProc
+  revoke: protectedProc
     .input(z.object({
       orgId: z.string(),
       keyId: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { orgId, keyId } = input;
+      
+      const membership = await ctx.db.query.orgMembers.findFirst({
+        where: and(eq(orgMembers.orgId, orgId), eq(orgMembers.userId, ctx.userId!)),
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+      if (membership.role !== "owner") throw new TRPCError({ code: "FORBIDDEN", message: "Owner role required" });
       
       await db.update(apiKeys)
         .set({ revokedAt: new Date() })

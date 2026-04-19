@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Ratelimit } from "@upstash/ratelimit";
-import { redis } from "./upstash";
+import { redis, isRedisAvailable } from "./upstash";
 
 type Plan = "free" | "pro";
 
@@ -8,6 +8,10 @@ export async function checkRateLimit(
   keyId: string,
   plan: Plan = "free"
 ): Promise<{ success: boolean; remaining: number; reset: number }> {
+  if (!isRedisAvailable()) {
+    return { success: true, remaining: 100, reset: 0 };
+  }
+
   try {
     const config: any = {
       redis,

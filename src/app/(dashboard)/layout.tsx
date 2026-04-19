@@ -63,7 +63,10 @@ export default async function DashboardLayout({
         </div>
         <nav className="space-y-2">
           <Link href="/prompts" className="block px-3 py-2 rounded hover:bg-gray-200">
-            Prompts
+            My Prompts
+          </Link>
+          <Link href="/public/prompts" className="block px-3 py-2 rounded hover:bg-gray-200">
+            Public Prompts
           </Link>
           <Link href="/experiments" className="block px-3 py-2 rounded hover:bg-gray-200">
             Experiments

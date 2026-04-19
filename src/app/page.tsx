@@ -36,9 +36,11 @@ export default function Home() {
             <Link href="/login">
               <Button size="lg">Start Free</Button>
             </Link>
-            <Button size="lg" variant="outline">
-              View Demo
-            </Button>
+            <Link href="/public/prompts">
+              <Button size="lg" variant="outline">
+                View Public Prompts
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
