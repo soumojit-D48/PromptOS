@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { api } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import * as Dialog from "@radix-ui/react-dialog";
 
 interface Version {
   id: string;
@@ -26,6 +28,8 @@ interface VersionListProps {
 
 export function VersionList({ promptId, orgId, versions, currentVersionId, publishedVersionId }: VersionListProps) {
   const router = useRouter();
+  const [rollbackOpen, setRollbackOpen] = useState(false);
+  const [rollbackVersionId, setRollbackVersionId] = useState<string | null>(null);
 
   const publishMutation = api.versions.publish.useMutation({
     onSuccess: () => {
@@ -41,20 +45,29 @@ export function VersionList({ promptId, orgId, versions, currentVersionId, publi
     onSuccess: () => {
       toast.success("Rolled back to version");
       router.refresh();
+      setRollbackOpen(false);
+      setRollbackVersionId(null);
     },
     onError: (error) => {
       toast.error(error.message);
+      setRollbackOpen(false);
+      setRollbackVersionId(null);
     },
   });
 
-  const handlePublish = (versionId: string) => {
-    publishMutation.mutate({ orgId, promptId, versionId });
+  const handleRollback = (versionId: string) => {
+    setRollbackVersionId(versionId);
+    setRollbackOpen(true);
   };
 
-  const handleRollback = (versionId: string) => {
-    if (confirm("This will create a new version with the content from this version. Continue?")) {
-      rollbackMutation.mutate({ orgId, promptId, versionId });
+  const confirmRollback = () => {
+    if (rollbackVersionId) {
+      rollbackMutation.mutate({ orgId, promptId, versionId: rollbackVersionId });
     }
+  };
+
+  const handlePublish = (versionId: string) => {
+    publishMutation.mutate({ orgId, promptId, versionId });
   };
 
   return (
@@ -119,6 +132,26 @@ export function VersionList({ promptId, orgId, versions, currentVersionId, publi
           ))}
         </div>
       )}
+
+      <Dialog.Root open={rollbackOpen} onOpenChange={setRollbackOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background rounded-lg p-6 w-full max-w-md border shadow-lg">
+            <Dialog.Title className="text-lg font-semibold mb-2">Confirm Rollback</Dialog.Title>
+            <Dialog.Description className="text-muted-foreground mb-6">
+              This will create a new version with the content from this version. The current version will be preserved in history. Continue?
+            </Dialog.Description>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setRollbackOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={confirmRollback} disabled={rollbackMutation.isPending}>
+                {rollbackMutation.isPending ? "Rolling back..." : "Confirm"}
+              </Button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }
