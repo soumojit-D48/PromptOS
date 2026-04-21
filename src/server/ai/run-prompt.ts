@@ -38,10 +38,13 @@ export async function runPrompt({
     messages,
   });
 
+  console.log("DEBUG runPrompt: waiting for AI response...");
+        const output = await result.text;
+        console.log("DEBUG runPrompt: got response, length:", output?.length);
   const latencyMs = Date.now() - startTime;
 
   return {
-    stream: result,
+    output,
     latencyMs,
   };
 }

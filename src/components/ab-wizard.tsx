@@ -43,6 +43,7 @@ export function ABWizard({ promptId, orgId, versions, open, onOpenChange }: ABWi
   const totalSelected = selectedVersions.length;
 
   const toggleVersion = (versionId: string) => {
+    console.log("DEBUG toggleVersion:", versionId);
     if (selectedVersions.includes(versionId)) {
       setSelectedVersions(selectedVersions.filter(id => id !== versionId));
       const newSplit = { ...trafficSplit };
@@ -51,6 +52,7 @@ export function ABWizard({ promptId, orgId, versions, open, onOpenChange }: ABWi
     } else if (selectedVersions.length < 4) {
       setSelectedVersions([...selectedVersions, versionId]);
       const newSplit = { ...trafficSplit, [versionId]: 100 / (selectedVersions.length + 1) };
+      console.log("DEBUG newSplit:", newSplit);
       setTrafficSplit(adjustSplitValues(newSplit, selectedVersions.length + 1));
     }
   };
@@ -85,8 +87,8 @@ export function ABWizard({ promptId, orgId, versions, open, onOpenChange }: ABWi
         return;
       }
 
-      if (inputs.length < 5 || inputs.length > 100) {
-        alert("Inputs must be between 5 and 100");
+      if (inputs.length < 2 || inputs.length > 100) {
+        alert("Inputs must be between 2 and 100");
         return;
       }
 
@@ -127,7 +129,7 @@ setTimeout(() => {
       }, 300);
   };
 
-  const publishedVersions = versions.filter(v => v.content);
+  const publishedVersions = versions;
   const canProceed = step === 1 
     ? name.trim() && selectedVersions.length >= 2
     : step === 2 
@@ -189,7 +191,7 @@ setTimeout(() => {
                     ))}
                   </div>
                   {publishedVersions.length < 2 && (
-                    <p className="text-sm text-red-500 mt-2">At least 2 published versions required</p>
+                    <p className="text-sm text-red-500 mt-2">At least 2 versions required</p>
                   )}
                 </div>
               </div>
@@ -227,7 +229,7 @@ setTimeout(() => {
               <div className="space-y-4">
                 <div>
                   <Label>Test Inputs (JSON Array)</Label>
-                  <p className="text-sm text-muted-foreground mb-2">Minimum 5, maximum 100 inputs</p>
+                  <p className="text-sm text-muted-foreground mb-2">Minimum 2, maximum 100 inputs</p>
                   <textarea
                     value={inputsJson}
                     onChange={(e) => setInputsJson(e.target.value)}

@@ -1,31 +1,52 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/trpc-client";
 import { ExperimentResults } from "@/components/experiment-results";
 
 export default function ExperimentDetailPage() {
   const params = useParams();
   const experimentId = params.id as string;
+  const [orgId, setOrgId] = useState<string | null>(null);
   
-  const { data: experiment, isLoading, refetch } = api.experiments.get.useQuery(
-    { orgId: "placeholder-org-id", experimentId },
-    { enabled: !!experimentId }
+  useEffect(() => {
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('currentOrgId='));
+    if (cookie) {
+      setOrgId(cookie.split('=')[1]);
+    }
+  }, []);
+
+  const queryEnabled = !!experimentId && !!orgId;
+  
+  const queryResult = api.experiments.get.useQuery(
+    { orgId: orgId!, experimentId },
+    { enabled: queryEnabled }
   );
+  
+  const experiment = queryResult.data;
+  const isLoading = queryResult.isLoading;
+  
+  useEffect(() => {
+    if (experiment?.status === "running") {
+      const interval = setInterval(() => queryResult.refetch(), 2000);
+      return () => clearInterval(interval);
+    }
+  }, [experiment?.status]);
 
   const isOwner = true;
   const isRunning = experiment?.status === "running";
 
-  if (isLoading) return <div>Loading...</div>;
-  
-  if (!experiment) return <div>Experiment not found</div>;
+  if (!orgId) return <div className="p-6">Loading...</div>;
+  if (isLoading) return <div className="p-6">Loading...</div>;
+  if (!experiment) return <div className="p-6">Experiment not found</div>;
 
   const progress = experiment.totalRuns > 0 
     ? Math.round((experiment.completedRuns / experiment.totalRuns) * 100)
     : 0;
 
   return (
-    <div>
+    <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">{experiment.name}</h1>
         <div className="flex items-center gap-4 mt-2">
@@ -60,7 +81,7 @@ export default function ExperimentDetailPage() {
       {experiment.status === "done" && experiment.totalRuns > 0 ? (
         <ExperimentResults 
           experimentId={experimentId} 
-          orgId="placeholder-org-id"
+          orgId={orgId}
           canDeclare={isOwner && !experiment.winnerVersion}
         />
       ) : isRunning ? (

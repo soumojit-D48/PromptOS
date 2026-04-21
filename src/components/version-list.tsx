@@ -30,6 +30,7 @@ export function VersionList({ promptId, orgId, versions, currentVersionId, publi
   const router = useRouter();
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [rollbackVersionId, setRollbackVersionId] = useState<string | null>(null);
+  const [rollbackVersionNum, setRollbackVersionNum] = useState<number | null>(null);
 
   const publishMutation = api.versions.publish.useMutation({
     onSuccess: () => {
@@ -55,8 +56,9 @@ export function VersionList({ promptId, orgId, versions, currentVersionId, publi
     },
   });
 
-  const handleRollback = (versionId: string) => {
+  const handleRollback = (versionId: string, versionNum: number) => {
     setRollbackVersionId(versionId);
+    setRollbackVersionNum(versionNum);
     setRollbackOpen(true);
   };
 
@@ -108,25 +110,27 @@ export function VersionList({ promptId, orgId, versions, currentVersionId, publi
                 {new Date(version.createdAt).toLocaleDateString()}
               </p>
 
-              {!version.isPublished && versions.length - idx > 1 && (
-                <div className="flex gap-2 mt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handlePublish(version.id)}
-                    disabled={publishMutation.isPending}
-                  >
-                    Publish
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleRollback(version.id)}
-                    disabled={rollbackMutation.isPending}
-                  >
-                    Rollback
-                  </Button>
-                </div>
+              {!version.isPublished && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handlePublish(version.id)}
+                  disabled={publishMutation.isPending}
+                  className="mt-2"
+                >
+                  Publish
+                </Button>
+              )}
+              {version.id !== currentVersionId && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleRollback(version.id, version.versionNum)}
+                  disabled={rollbackMutation.isPending}
+                  className="mt-2"
+                >
+                  Rollback
+                </Button>
               )}
             </div>
           ))}
@@ -139,7 +143,7 @@ export function VersionList({ promptId, orgId, versions, currentVersionId, publi
           <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background rounded-lg p-6 w-full max-w-md border shadow-lg">
             <Dialog.Title className="text-lg font-semibold mb-2">Confirm Rollback</Dialog.Title>
             <Dialog.Description className="text-muted-foreground mb-6">
-              This will create a new version with the content from this version. The current version will be preserved in history. Continue?
+              This will create a new version with the content from v{rollbackVersionNum}. The current version will be preserved in history. Continue?
             </Dialog.Description>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setRollbackOpen(false)}>
