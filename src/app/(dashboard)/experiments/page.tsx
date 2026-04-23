@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { orgMembers, organizations, experiments, prompts } from "@/server/db/schema";
 import { db } from "@/server/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 export default async function ExperimentsPage() {
@@ -34,7 +34,7 @@ export default async function ExperimentsPage() {
   const promptIds = orgPrompts.map(p => p.id);
 
   const allExperiments = await db.query.experiments.findMany({
-    where: promptIds.length > 0 ? eq(experiments.promptId, promptIds[0]) : undefined,
+    where: promptIds.length > 0 ? inArray(experiments.promptId, promptIds) : undefined,
     orderBy: [desc(experiments.createdAt)],
   });
 
