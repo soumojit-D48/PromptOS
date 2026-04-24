@@ -40,11 +40,17 @@ export async function runPrompt({
 
   console.log("DEBUG runPrompt: waiting for AI response...");
         const output = await result.text;
+        const usage = await result.usage;
         console.log("DEBUG runPrompt: got response, length:", output?.length);
   const latencyMs = Date.now() - startTime;
+  
+  const tokensIn = usage?.inputTokens ?? 0;
+  const tokensOut = usage?.outputTokens ?? 0;
 
   return {
     output,
     latencyMs,
+    tokensIn,
+    tokensOut,
   };
 }

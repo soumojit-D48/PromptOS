@@ -46,12 +46,16 @@ export const experimentsRouter = router({
         where: eq(experimentRuns.experimentId, input.experimentId),
       });
       
-      const totalRuns = runs.length;
+      const trafficSplit = experiment.trafficSplit as Record<string, number>;
+      const versionIds = Object.keys(trafficSplit).filter(k => k !== "__inputs");
+      const inputs = (trafficSplit as Record<string, unknown> & { __inputs?: Array<Record<string, string>> }).__inputs ?? [];
+      
+      const expectedTotalRuns = versionIds.length * (inputs.length > 0 ? inputs.length : 1);
       const completedRuns = runs.filter(r => r.output !== null).length;
       
       return {
         ...experiment,
-        totalRuns,
+        totalRuns: expectedTotalRuns,
         completedRuns,
         runs,
       };
@@ -220,6 +224,8 @@ const invalidVersions = inputVersionIds.filter(id => !versionIds.includes(id));
                 input: testInput,
                 output: result.output,
                 latencyMs: result.latencyMs,
+                tokensIn: result.tokensIn,
+                tokensOut: result.tokensOut,
               });
             }
           }
@@ -257,7 +263,7 @@ const invalidVersions = inputVersionIds.filter(id => !versionIds.includes(id));
       });
       
       const trafficSplit = experiment.trafficSplit as Record<string, number>;
-      const versionIds = Object.keys(trafficSplit);
+      const versionIds = Object.keys(trafficSplit).filter(k => k !== "__inputs");
       
       const results = await Promise.all(
         versionIds.map(async (versionId) => {

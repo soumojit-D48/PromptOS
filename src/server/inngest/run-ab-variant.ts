@@ -30,7 +30,7 @@ export const runAbVariant = inngest.createFunction(
     }
 
     const trafficSplit = experiment.trafficSplit as Record<string, number>;
-    const versionIds = Object.keys(trafficSplit);
+    const versionIds = Object.keys(trafficSplit).filter(k => k !== "__inputs");
 
     const versionPromises = versionIds.map(async (versionId) => {
       return db.query.promptVersions.findFirst({
@@ -58,8 +58,10 @@ export const runAbVariant = inngest.createFunction(
           experimentId: experiment.id,
           versionId: version.id,
           input,
-          output: "completed",
+          output: runResult.output,
           latencyMs: runResult.latencyMs,
+          tokensIn: runResult.tokensIn,
+          tokensOut: runResult.tokensOut,
         });
 
         results.push({
