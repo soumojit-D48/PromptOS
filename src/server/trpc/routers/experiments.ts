@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProc, orgProc, editorProc } from "../init";
 import { experiments, experimentRuns, prompts, promptVersions, organizations, orgMembers } from "@/server/db/schema";
-import { eq, and, desc, sql, count, gte, sql as sqlFn } from "drizzle-orm";
+import { eq, and, desc, sql, count, gte, inArray, sql as sqlFn } from "drizzle-orm";
 import { inngest } from "@/server/inngest/client";
 import { db } from "@/server/db";
 import { TRPCError } from "@trpc/server";
@@ -11,15 +11,21 @@ export const experimentsRouter = router({
   list: protectedProc
     .input(z.object({ orgId: z.string().uuid(), promptId: z.string().uuid().optional() }))
     .query(async ({ ctx, input }) => {
-      const where = input.promptId
-        ? and(eq(experiments.promptId, input.promptId as string))
-        : undefined;
-      
-      // Check membership
       const membership = await ctx.db.query.orgMembers.findFirst({
         where: and(eq(orgMembers.orgId, input.orgId), eq(orgMembers.userId, ctx.userId!)),
       });
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+
+      const orgPrompts = await ctx.db.query.prompts.findMany({
+        where: eq(prompts.orgId, input.orgId),
+      });
+      const promptIds = orgPrompts.map(p => p.id);
+
+      const where = input.promptId
+        ? and(eq(experiments.promptId, input.promptId as string))
+        : promptIds.length > 0
+        ? inArray(experiments.promptId, promptIds)
+        : undefined;
 
       return ctx.db.query.experiments.findMany({
         where,
@@ -345,5 +351,27 @@ const invalidVersions = inputVersionIds.filter(id => !versionIds.includes(id));
         .returning();
       
       return updated;
+    }),
+
+  delete: protectedProc
+    .input(z.object({ orgId: z.string().uuid(), experimentId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const experiment = await ctx.db.query.experiments.findFirst({
+        where: eq(experiments.id, input.experimentId),
+      });
+      
+      if (!experiment) {
+        throw new Error("Experiment not found");
+      }
+      
+      await ctx.db
+        .delete(experimentRuns)
+        .where(eq(experimentRuns.experimentId, input.experimentId));
+      
+      await ctx.db
+        .delete(experiments)
+        .where(eq(experiments.id, input.experimentId));
+      
+      return { success: true };
     }),
 });

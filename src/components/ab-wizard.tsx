@@ -109,6 +109,7 @@ export function ABWizard({ promptId, orgId, versions, open, onOpenChange }: ABWi
 
       onOpenChange(false);
       router.push(`/experiments/${experiment.id}`);
+      // window.location.href = `/experiments/${experiment.id}`;
     } catch (error) {
       console.error("Failed to start experiment:", error);
       alert("Failed to start experiment");
