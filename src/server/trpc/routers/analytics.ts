@@ -52,6 +52,7 @@ export const analyticsRouter = router({
           tokensIn: experimentRuns.tokensIn,
           tokensOut: experimentRuns.tokensOut,
           runType: experimentRuns.runType,
+          createdAt: experimentRuns.createdAt,
         })
         .from(experimentRuns)
         .innerJoin(promptVersions, eq(experimentRuns.versionId, promptVersions.id))
@@ -82,7 +83,7 @@ export const analyticsRouter = router({
       const dailyMap = new Map<string, { runs: number; tokensIn: number; tokensOut: number }>();
       runs.forEach((r) => {
         if (!r.latencyMs) return;
-        const date = new Date(r.latencyMs).toISOString().split("T")[0];
+        const date = new Date(r.createdAt).toISOString().split("T")[0];
         const existing = dailyMap.get(date) || { runs: 0, tokensIn: 0, tokensOut: 0 };
         dailyMap.set(date, {
           runs: existing.runs + 1,
@@ -118,7 +119,7 @@ export const analyticsRouter = router({
 
       const data = await db
         .select({
-          date: sql<Date>`DATE(${experimentRuns.createdAt})`.as("date"),
+          date: sql<string>`DATE(${experimentRuns.createdAt})`.as("date"),
           count: count(),
           tokensIn: sum(experimentRuns.tokensIn),
           tokensOut: sum(experimentRuns.tokensOut),
@@ -133,11 +134,11 @@ export const analyticsRouter = router({
             gte(experimentRuns.createdAt, start)
           )
         )
-        .groupBy(sql`DATE(${experimentRuns.createdAt})`)
-        .orderBy(sql`DATE(${experimentRuns.createdAt})`);
+        .groupBy(sql<string>`DATE(${experimentRuns.createdAt})`)
+        .orderBy(sql<string>`DATE(${experimentRuns.createdAt})`);
 
       return data.map((d) => ({
-        date: d.date.toISOString().split("T")[0],
+        date: d.date,
         runs: Number(d.count) || 0,
         tokensIn: Number(d.tokensIn) || 0,
         tokensOut: Number(d.tokensOut) || 0,

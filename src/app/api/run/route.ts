@@ -48,16 +48,16 @@ export async function POST(req: NextRequest) {
     maxTokens: 1000,
   };
 
-  const { stream, latencyMs } = await runPrompt({
+  const result = await runPrompt({
     content: version.content,
     variables: input || {},
     model: modelOverride || version.model,
     params,
   });
 
-  return stream.toTextStreamResponse({
+  return new Response(result.output, {
     headers: {
-      "X-Latency-Ms": latencyMs.toString(),
+      "X-Latency-Ms": result.latencyMs.toString(),
     },
   });
 }

@@ -5,9 +5,11 @@ if (!process.env.STRIPE_SECRET_KEY) {
   console.warn("[Stripe] STRIPE_SECRET_KEY not set");
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2026-03-25.dahlia",
-});
+export const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2026-03-25.dahlia",
+    })
+  : (null as unknown as Stripe);
 
 const PRICE_ID = process.env.STRIPE_PRICE_ID || "price_pro_monthly";
 

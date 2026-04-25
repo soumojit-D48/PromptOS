@@ -16,6 +16,14 @@ interface ApiKey {
   permissions?: string | null;
 }
 
+interface ApiKeyInput {
+  id: string;
+  name: string;
+  lastUsed: string | null;
+  createdAt: string;
+  permissions?: string | null;
+}
+
 interface ApiKeysClientProps {
   orgId: string;
 }
@@ -35,7 +43,7 @@ export function ApiKeysClient({ orgId }: ApiKeysClientProps) {
 
   useEffect(() => {
     if (listData) {
-      setKeys(listData as ApiKey[]);
+      setKeys(listData.map(k => ({ ...k, createdAt: new Date(k.createdAt), lastUsed: k.lastUsed ? new Date(k.lastUsed) : null })) as ApiKey[]);
       setIsLoading(false);
     }
   }, [listData]);
